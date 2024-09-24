@@ -1,0 +1,3 @@
+[submodule "basement/basement-renovator"]
+	path = basement/basement-renovator
+	url = https://github.com/Basement-Renovator/basement-renovator.git
