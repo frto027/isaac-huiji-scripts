@@ -26,4 +26,4 @@ tabx的操作已封装至pytabx库
 `test/*`|一些测试文件
 `babies/*`|维护Data:Babies.tabx
 `basement/*`|维护房间地形数据
-`item_keywords/*`|维护搜索关键词的相关内容
+`item_keywords/*`|维护搜索关键词的相关内容`error_detect/*`|缩略图出错爬虫？
