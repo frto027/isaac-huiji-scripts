@@ -33,6 +33,11 @@ class TabxDataRow:
         self._row = row
         self._parentTabx = parentTabx
 
+    def __setitem__(self, name, value):
+        self.set(name, value)
+    def __getitem__(self, name):
+        return self.get(name)
+
     def get(self, fieldName:str):
         field : (TabxField | None) = self._parentTabx.find_field(fieldName)
         if field == None:
@@ -41,7 +46,7 @@ class TabxDataRow:
     
     def set(self, fieldName:str, value):
         field : (TabxField | None) = self._parentTabx.find_field(fieldName)
-        assert field != None
+        assert field != None, f'field {fieldName} not exists'
         if fieldName in self._parentTabx._columnIndex:
             index = self._parentTabx._columnIndex[fieldName]
             if self._row[field._index] in index and index[self._row[field._index]] == self:

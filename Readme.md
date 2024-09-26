@@ -25,5 +25,8 @@ tabx的操作已封装至pytabx库
 `pytabx/*`|用于操作灰机wiki中的tabx文件的py库
 `test/*`|一些测试文件
 `babies/*`|维护Data:Babies.tabx
-`basement/*`|维护房间地形数据
-`item_keywords/*`|维护搜索关键词的相关内容`error_detect/*`|缩略图出错爬虫？
+`basement/*`|维护房间地形数据Data:Rooms/*
+`item_keywords/*`|维护搜索关键词的相关内容
+`error_detect/*`|缩略图出错爬虫？
+`anm2player_scripts/*`|Anm2播放器图像上传工具
+`wisps/*`|维护Data:wisps.tabx

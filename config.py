@@ -18,6 +18,6 @@ useraccount = "Frto027"
 with open("D:/pswd.txt", "r") as f:
     password = f.read()
 
-
+############### 不许执行相关 ##############
 if __name__ == "__main__":
     raise RuntimeError("This file should not be executed")
