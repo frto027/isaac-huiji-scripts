@@ -36,7 +36,11 @@ for tag in doc:
             return tag.attrib[x] if x in tag.attrib else None
         colors[tag.attrib['name']] = Color(g('r'),g('g'), g('b'), g('or'), g('og'), g('ob'))
     elif tag.tag == 'wisp':
-        d = tabx.get_row_by_unique_field('id', tag.attrib["id"], True)
+        id = tag.attrib["id"]
+        if id[0] == 's':
+            id = str(65536 + int(id[1:]))
+        d = tabx.get_row_by_unique_field('id', id, True)
+
         if "hp" in tag.attrib:
             d["hp"] = float(tag.attrib["hp"])
         if "damage" in tag.attrib:
