@@ -28,6 +28,5 @@ def get_file_wiki_url(pngname:str):
     dig = hashlib.md5(pngname.encode()).hexdigest()
     return f"https://huiji-public.huijistatic.com/isaac/uploads/{dig[0]}/{dig[0:2]}/{pngname}"
 
-
 if __name__ == "__main__":
     raise RuntimeError("This file should not be executed")
