@@ -4,7 +4,9 @@ import pathlib
 sys.path.append(f"{pathlib.Path(__file__).parent.parent}")
 sys.path.append(f"{pathlib.Path(__file__).parent / 'basement-renovator/src'}")
 ###########################################################
-
+"""
+此脚本用于将stb文件转换为json并上传至wiki
+"""
 import config
 import json
 import roomconvert
