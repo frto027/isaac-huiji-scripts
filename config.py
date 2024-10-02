@@ -14,7 +14,7 @@ with open('D:/huiji_auth.json','r') as f:
     auth_header = json.load(f)
 
 def header(script_name="default"):
-    agent_header = {"User-Agent":"Frto027/" + script_name}
+    agent_header = {"User-Agent":"Frto027/" + script_name + ",(https://github.com/frto027/isaac-huiji-scripts)"}
     for k in auth_header:
         agent_header[k] = auth_header[k]
     return agent_header

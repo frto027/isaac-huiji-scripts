@@ -9,7 +9,7 @@ def filter_by_file(filename = "Item.tabx"):
     }
 
 def query(filter):
-    req = urllib.request.Request("https://isaac.huijiwiki.com/api/rest_v1/namespace/data?" + urllib.parse.urlencode({"filter":json.dumps(filter)}), headers=config.header())
+    req = urllib.request.Request("https://isaac.huijiwiki.com/api/rest_v1/namespace/data?" + urllib.parse.urlencode({"filter":json.dumps(filter)}), headers=config.header("mongodb query script"))
     opener = urllib.request.build_opener()
     ret = opener.open(req).read().decode()
     return json.loads(ret)

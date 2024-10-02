@@ -2,12 +2,12 @@ import mwclient
 import config
 
 def site(hint = 'isaac.py')->mwclient.Site:
-    site = mwclient.Site("isaac.huijiwiki.com",clients_useragent=f"Frto027/{hint}", custom_headers=config.auth_header)
+    site = mwclient.Site("isaac.huijiwiki.com",clients_useragent=f"Frto027/{hint},(https://github.com/frto027/isaac-huiji-scripts)", custom_headers=config.auth_header)
     site.login(config.useraccount, config.password)
     return site
 
 def site_bot(hint = 'isaac.py')->mwclient.Site:
-    site = mwclient.Site("isaac.huijiwiki.com",clients_useragent=f"Frto027_bot/{hint}", custom_headers=config.auth_header)
+    site = mwclient.Site("isaac.huijiwiki.com",clients_useragent=f"Frto027_bot/{hint},(https://github.com/frto027/isaac-huiji-scripts)", custom_headers=config.auth_header)
     site.login(config.useraccount_bot, config.password)
     return site
 
