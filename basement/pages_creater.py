@@ -183,9 +183,13 @@ def manage_normal(stbfile='greed/xx.stb', room_name = "地下室", roomtype='d')
 
 
 for k in room_name_to_type:
+    if k == 'd':
+        continue
     manage_special(k, True)
 
 for k in room_name_to_type:
+    if k == 'd':
+        continue
     manage_special(k, False)
 
 normal_rooms = {

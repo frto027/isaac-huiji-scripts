@@ -22,6 +22,7 @@ tabx的操作已封装至pytabx库
 ---|---
 `config.py`|配置文件，运行前请修改
 `isaac.py`|灰机wiki操作相关封装
+`mongo.py`|mongodb查询
 `pytabx/*`|用于操作灰机wiki中的tabx文件的py库
 `test/*`|一些测试文件
 `babies/*`|维护Data:Babies.tabx
