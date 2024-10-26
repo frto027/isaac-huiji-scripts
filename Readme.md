@@ -31,3 +31,9 @@ tabx的操作已封装至pytabx库
 `error_detect/*`|缩略图出错爬虫？
 `anm2player_scripts/*`|Anm2播放器图像上传工具
 `wisps/*`|维护Data:wisps.tabx
+
+# 零件项目
+
+## expr_evaluator
+
+公式计算器零件相关源码

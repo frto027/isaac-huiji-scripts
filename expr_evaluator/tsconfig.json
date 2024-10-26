@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "lib": [
+            "ES2015",
+            "DOM"
+        ],
+        "outDir": "out"
+    },
+    "include": [
+        "eval.ts"
+    ]
+    
+}
