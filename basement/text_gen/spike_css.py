@@ -9,17 +9,23 @@ def spike_pos(x):
         4,4,4,4,4,
         4,4,4,4,4,
         4,4,4,4,4,
+        4,4,4,4,4,
         4,3,2,1,0,
         0,0,0,0,0,
         0,0,0,0,0,
         0,0,0,0,0,
-        0,0,0,0,0,
         0,0,0,0,0]
+    # 省流，省掉50%
+    last_pos = ""
+    
     for i in range(len(spikes)):
-        ret += "%.2f" % (i*100/len(spikes))
-        ret += "%{"
-        ret += pos(spikes[(len(spikes) + i-x*5)%len(spikes)])
-        ret += "}\n"
+        this_pos = pos(spikes[(len(spikes) + i-x*5)%len(spikes)])
+        if this_pos != last_pos:
+            last_pos = this_pos
+            ret += "%.2f" % (i*100/len(spikes))
+            ret += "%{"
+            ret += this_pos
+            ret += "}\n"
     return ret
 
 def spike_pos_neg(x):
@@ -52,7 +58,7 @@ for i in range(10):
 
 for i in range(10):
     css += ".rooms_spike_" + str(i+1) + "{"
-    css += "animation-name:rooms_spike_" + str(i+1) + ";animation-duration:%.2fs;" % (50 * 3 * 1 / 60)
+    css += "animation-name:rooms_spike_" + str(i+1) + ";animation-duration:%.2fs;" % (50 * 5 * 1 / 60)
     css += "}\n"
 
 print(css)
