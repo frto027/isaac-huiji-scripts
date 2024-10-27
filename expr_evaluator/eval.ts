@@ -1,3 +1,27 @@
+class MathJaxHelper{
+    static mathJaxUpdateTimeout : number|undefined = undefined
+    static queues:Set<Element> = new Set()
+    static updateMathJax(elems:Array<Element>){
+        var W: any = window
+        for(let i=0;i<elems.length;i++){
+            this.queues.add(elems[i])
+        }
+        // update mathjax expression
+        if(MathJaxHelper.mathJaxUpdateTimeout != undefined){
+            clearTimeout(MathJaxHelper.mathJaxUpdateTimeout)
+        }
+        MathJaxHelper.mathJaxUpdateTimeout = setTimeout(function(){
+            MathJaxHelper.mathJaxUpdateTimeout = undefined
+            let arg = []
+            MathJaxHelper.queues.forEach(v=>arg.push(v))
+            W.MathJax.typeset(arg)
+        },100)
+
+    }
+}
+enum VarUpdateType{
+    NEW,CHANGED,NOT_CHANGED
+}
 class ExprContext{
     static ctx:ExprContext = new ExprContext()
 
@@ -8,11 +32,16 @@ class ExprContext{
     rndFloatExprValues: Map<number,number> = new Map()
     rndIntExprValues: Map<number,number> = new Map()
 
+    changedCallback:((name:string, value:number, changed:VarUpdateType)=>void)|undefined = undefined
+    compareResultCallback: (expr:CompareExpr, result:boolean)=>void | undefined = undefined
+
     has(name:string):boolean{
         return this.vars.has(name)
     }
     get(name:string):number{
-        return this.vars.get(name) || NaN
+        if(this.has(name))
+            return this.vars.get(name)
+        return NaN
     }
     set(name:string, value:number){
         if(this.vars.has(name)){
@@ -20,7 +49,12 @@ class ExprContext{
             if(v == v && value == value && Math.abs(v - value) > 0.0000001){
                 this.changed = true
                 console.log(name, ":", this.vars.get(name), "=>", value)
+                if(this.changedCallback)this.changedCallback(name,value, VarUpdateType.CHANGED)
+            }else{
+                if(this.changedCallback)this.changedCallback(name,value,VarUpdateType.NOT_CHANGED)
             }
+        }else{
+            if(this.changedCallback)this.changedCallback(name,value,VarUpdateType.NEW)
         }
         this.vars.set(name, value)
     }
@@ -163,6 +197,9 @@ class CompareExpr extends BinaryExpr{
         }
         if(this.op == "<="){
             this.cmpResult = L <= R
+        }
+        if(ExprContext.ctx.compareResultCallback){
+            ExprContext.ctx.compareResultCallback(this, this.cmpResult)
         }
         return L
     }
@@ -555,24 +592,34 @@ class ExprFactory{
             }
             if(tag.tagName == "msubsup"){
                 assert(tag.children[0].tagName == "mi" || tag.children[0].tagName == "mn", "not supported")
-                assert(tag.children[1].tagName == "mi" || tag.children[1].tagName == "mn", "not supported")
                 if(tag.children[2].tagName == "mo" && !is_sub((tag.children[2].textContent || "-")[0]) && !(new RegExp("^[0-9].*$").exec(tag.children[2].textContent || "0"))){
                     //角标特判，右上角标为变量名
-                    return new Variable((tag.children[0].textContent || "?") + "~" + (tag.children[2].textContent || "?"), tag.children[1].textContent || "?");
+                    return new Variable((tag.children[0].textContent || "?") + "^" + (tag.children[2].textContent || "?"), tag.children[1].textContent || "?");
                 }
+                if(tag.children[1].tagName == "mrow"){
+                    //手动处理下标为_{xxx}的情况
+                    let v = new Variable(tag.children[0].textContent||"?", "{" + (tag.children[1].textContent||"?") + "}")
+                    let p = readSingleValueExpr(tag.children[2])
+                    return new PowExpr(v,p)
+                }
+                assert(tag.children[1].tagName == "mi" || tag.children[1].tagName == "mn", "not supported")
                 let v = new Variable(tag.children[0].textContent||"?", tag.children[1].textContent||"?")
                 let p = readSingleValueExpr(tag.children[2])
                 return new PowExpr(v,p)
             }
             if(tag.tagName == "msub"){
                 assert(tag.children[0].tagName == "mi" || tag.children[0].tagName == "mn", "not supported")
+                if(tag.children[1].tagName == "mrow"){
+                    //手动处理下标为_{xxx}的情况
+                    return new Variable(tag.children[0].textContent||"?", "{" + (tag.children[1].textContent||"?") + "}")
+                }
                 assert(tag.children[1].tagName == "mi" || tag.children[1].tagName == "mn", "not supported")
                 return new Variable(tag.children[0].textContent||"?", tag.children[1].textContent||"?")
             }
             if(tag.tagName == "msup"){
                 if(tag.children[1].tagName == "mo" && !is_sub((tag.children[1].textContent || "-")[0]) && !(new RegExp("^[0-9].*$").exec(tag.children[1].textContent || "0"))){
                     //角标特判，右上角标为变量名
-                    return new Variable((tag.children[0].textContent || "?") + "~" + (tag.children[1].textContent || "?"), undefined);
+                    return new Variable((tag.children[0].textContent || "?") + "^" + (tag.children[1].textContent || "?"), undefined);
                 }
                 let v = readSingleValueExpr(tag.children[0])
                 let p = readSingleValueExpr(tag.children[1])
@@ -756,13 +803,49 @@ class ExprFactory{
     }
 }
 
-class ElementFollower{
+class Follower{
+    follow(){}
+    text(txt:string){}
+    hide(){}
+    show(){}
+    isHide():boolean{return true}
+    setHideAllCallback(f:()=>void){}
+}
+
+
+class ElementFollower extends Follower{
     elem:Element
     root:HTMLElement
+    txtElem:HTMLElement
+    is_hide = true
+    
+    hideAllCallback:()=>void = undefined
     constructor(elem){
+        super()
+        while(elem.tagName == "math" || elem.tagName.indexOf("mjx-")>=0  || elem.tagName.indexOf("MJX-")>=0){
+            if(elem.parentElement){
+                elem = elem.parentElement
+            }else{
+                break
+            }
+        }
         this.elem = elem
         this.root = document.createElement("div")
-        this.root.innerText = ""
+        this.root.innerHTML = `
+        <span><button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-times"></i></button><button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-eye-slash"></i></button></span>
+        <span class='follower-text'></span>`
+
+        this.txtElem = this.root.querySelector(".follower-text");
+
+        (this.root.querySelector(".follower-hide") as HTMLElement).addEventListener("click",()=>{
+            this.hide()
+        });
+        (this.root.querySelector(".follower-hide-all") as HTMLElement).addEventListener("click",()=>{
+            if(this.hideAllCallback)
+                this.hideAllCallback()
+        });
+        this.root.style.display = "none"
+        // this.root.innerText = ""
         this.root.style.position = 'absolute'
         this.root.style.padding = "2px 8px"
         this.root.style.backgroundColor = 'rgb(237 225 142 / 86%)'
@@ -776,12 +859,29 @@ class ElementFollower{
         this.root.style.top = (this.elem.getBoundingClientRect().top + window.scrollY + 10) + "px"
     }
     text(txt){
-        this.root.innerText = txt
+        this.txtElem.innerText = txt
+        MathJaxHelper.updateMathJax([this.txtElem])
+    }
+
+    hide(){
+        this.is_hide = true
+        this.root.style.display = "none"
+    }
+    show(){
+        this.is_hide = false
+        this.root.style.display="block"
+    }
+    isHide(): boolean {
+        return this.is_hide
+    }
+    setHideAllCallback(f: () => void): void {
+        this.hideAllCallback = f
     }
 }
 
 class VarProvider{
     static mathJaxUpdateTimeout:number|undefined
+    static globalDrawStartCallback:()=>void = undefined
     input:HTMLInputElement
     low:number
     high:number
@@ -791,9 +891,15 @@ class VarProvider{
     init:number
     callback:()=>void
     value:number = NaN
+    rndType:string = "none"
+
+    drawStarted = false
 
     percentElem:HTMLElement
     textElem:HTMLElement
+    clickElement:HTMLElement
+
+    
 
     readonly = false
     constructor(elem:Element, callback){
@@ -802,7 +908,7 @@ class VarProvider{
         elem.innerHTML = `
             <div class='mathvar-input-container' style="
                 display: inline-block;
-                width: 80px;
+                width: 120px;
                 height: 30px;
                 position: relative;
                 background-color: rgb(53, 53, 53);
@@ -821,6 +927,7 @@ class VarProvider{
         this.textElem = elem.querySelector(".mathvar-text")!
         this.percentElem = elem.querySelector(".mathvar-percent")!
         let clickOverlay = elem.querySelector(".mathvar-click")!
+        this.clickElement = clickOverlay as HTMLElement
         
         // input!.innerHTML = "<input class='mathvar-inputbox form-control' style='display:inline;width:70px;border-radius:5px' type='number'>"
         // let inputBox = elem.querySelector(".mathvar-inputbox")
@@ -829,30 +936,67 @@ class VarProvider{
         this.init = +(elem.getAttribute("data-mathvar-init") || "1")
         this.high = +(elem.getAttribute("data-mathvar-high") || "10")
         this.intOnly = elem.getAttribute("data-mathvar-int") == "true"
+        this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
 
         this.setValue(this.init)
 
+        this.textElem.innerText = "   \\(" + this.varname + "\\)"
+        if(this.rndType != "none"){
+            this.textElem.innerHTML = '&nbsp;<i class="fa fa-random"></i>' + this.textElem.innerHTML
+        }
+        this.textElem.innerHTML = '<i class="fa fa-calculator"></i>' + this.textElem.innerHTML
+        MathJaxHelper.updateMathJax([this.textElem])
         let me = this
+        
+
+        let value_init:number|undefined = undefined
+        let need_trigger_mouse_click = true
         clickOverlay.addEventListener('mousemove',function(ev:MouseEvent){
             if(me.readonly)
                 return;
             if((ev.buttons & 1) == 0) return;
+            if(!me.drawStarted) me.start_draw();
             var percent = (ev.offsetX)/this.clientWidth;
             var value = me.p2v(percent)
+            if(value_init == undefined){
+                value_init = value
+                need_trigger_mouse_click = true
+                return
+            }else if(value_init != value){
+                need_trigger_mouse_click = false
+            }
             me.setValue(value)
             me.callback()
         });
+        clickOverlay.addEventListener("mouseup",function(){
+            if(!me.drawStarted) me.start_draw();
+            value_init = undefined
+            if(need_trigger_mouse_click){
+               me.rnd() 
+            }
+            need_trigger_mouse_click = true
+        })
         
         let touch_relative_point_x = undefined;
         let touch_identifier = undefined;
         
+        clickOverlay.addEventListener("click",function(){
+            if(!me.drawStarted) me.start_draw();
+        })
+
         clickOverlay.addEventListener('touchstart', function(ev:TouchEvent){
+            if(!me.drawStarted){
+                me.start_draw()
+            }
             if(me.readonly) return;
             if(touch_identifier) return;
             if(ev.targetTouches.length == 0) return;
             touch_identifier = ev.targetTouches[0].identifier;
             touch_relative_point_x = ev.targetTouches[0].pageX;
+
+            need_trigger_mouse_click = true;
+            value_init = undefined
         });
         clickOverlay.addEventListener('touchmove',function(ev:TouchEvent){
             if(me.readonly || touch_identifier == undefined) return;
@@ -864,6 +1008,11 @@ class VarProvider{
                     var percent = me.v2p(me.value) + offset;
                     if(percent > 1) percent = 1;
                     if(percent < 0) percent = 0;
+                    if(value_init == undefined){
+                        value_init = percent
+                    }else if(value_init != percent){
+                        need_trigger_mouse_click = false
+                    }
                     me.setValue(me.p2v(percent));
                     me.callback()
                     if(ev.cancelable)
@@ -878,9 +1027,14 @@ class VarProvider{
                     touch_identifier = undefined;
                 }
             }
+            if(need_trigger_mouse_click){
+                value_init = undefined
+                me.rnd()
+            }
         });
         
         clickOverlay.addEventListener('dblclick',function(ev){
+            if(!me.drawStarted) me.start_draw()
             let w:any = window
 
             ev.preventDefault();
@@ -901,7 +1055,6 @@ class VarProvider{
             me.setValue(vNum);
             me.callback()
         });
-    
 
         // elem.querySelector(".mathvar-inc")?.addEventListener("click",()=>{
         //     this.setValue(1+ +this.input.value)
@@ -915,6 +1068,28 @@ class VarProvider{
         //     this.setValue(+this.input.value)
         //     this.callback()
         // })
+    }
+
+    start_draw(){
+        this.drawStarted = true
+        if(VarProvider.globalDrawStartCallback){
+            VarProvider.globalDrawStartCallback()
+        }
+        if(this.rndType != "none"){
+            this.rnd()
+        }else{
+            this.setValue(this.init)
+        }
+    }
+
+    rnd(){
+        if(this.rndType == "rnd"){
+            if(this.intOnly){
+                this.setValue(0|(Math.random() * (this.high - this.low + 1) + this.low), true)
+            }else{
+                this.setValue(Math.random() * (this.high - this.low) + this.low, true)
+            }
+        }
     }
     p2v(p:number){
         return this.low + (this.high - this.low) * p;
@@ -932,29 +1107,32 @@ class VarProvider{
     };
 
 
-    setValue(i:number){
+    setValue(i:number, isRandomValue:boolean = false){
         if(i > this.high) i = this.high
         if(i < this.low) i = this.low
-        if(this.intOnly) i = Math.round(i / this.intScale) * this.intScale
         this.value = i
+        if(this.intOnly) i = Math.round(i / this.intScale) * this.intScale
 
         let p = this.v2p(i)
         this.percentElem.style.width = (100 * (+p)) + "%"
         this.textElem.innerText = "\\(" + this.hintText(i) + "\\)"
-
-        //update mathjax expression
-        if(VarProvider.mathJaxUpdateTimeout != undefined){
-            clearTimeout(VarProvider.mathJaxUpdateTimeout)
+        if(this.rndType != "none"){
+            if (isRandomValue) {
+                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#e3e3e3"></i>&nbsp;&nbsp;&nbsp;' + this.textElem.innerHTML;
+            }
+            else {
+                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#757575"></i>&nbsp;&nbsp;&nbsp;' + this.textElem.innerHTML;
+            }
         }
-        VarProvider.mathJaxUpdateTimeout = setTimeout(function(){
-            VarProvider.mathJaxUpdateTimeout = undefined
-            var W: any = window
-            W.MathJax.typeset()
-        },100)
+        MathJaxHelper.updateMathJax([this.textElem])
     }
 
     updateContext(){
-        ExprContext.ctx.set(this.varname, this.value)
+        if(this.intOnly){
+            ExprContext.ctx.set(this.varname, Math.round(this.value / this.intScale) * this.intScale)
+        }else{
+            ExprContext.ctx.set(this.varname, this.value)
+        }
     }
 }
 
@@ -972,12 +1150,48 @@ let maths = document.getElementsByTagName("math")
 let factory = new ExprFactory()
 
 let exprs:Array<Expr> = []
-let followers :Array<ElementFollower> = []
+let followers :Array<Follower> = []
+
+function isAllFollowersHide(){
+    for(var i=0;i<followers.length;i++)
+        if(!followers[i].isHide())
+            return false
+    return true
+}
+
+class WikiMathExpressionProperty{
+    show_result:boolean
+}
+
+function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
+    while(elem.tagName == "math" || elem.tagName.indexOf("mjx-")>=0  || elem.tagName.indexOf("MJX-")>=0){
+        if(elem.parentElement){
+            elem = elem.parentElement
+        }else{
+            break
+        }
+    }
+    if(elem?.hasAttribute("data-calc") ?? false){
+        if(elem.getAttribute("data-calc") == "1"){
+            prop.show_result = (elem.getAttribute("data-showresult") || "1") == "1"
+            return true
+        }
+    }
+    return false
+}
+
 for(let m=0;m<maths.length;m++){
+    let prop = new WikiMathExpressionProperty()
+    if(!need_calc_math(maths[m], prop))
+        continue
     try{
         let e = factory.fromMathML(maths[m])
         exprs.push(e)
-        followers.push(new ElementFollower(maths[m]))
+        if(prop.show_result){
+            followers.push(new ElementFollower(maths[m]))
+        }else{
+            followers.push(new Follower())
+        }
         console.log(e)
         console.log(e.toString())    
     }catch(e){
@@ -986,6 +1200,8 @@ for(let m=0;m<maths.length;m++){
 }
 
 function calculate(){
+    let need_display_followers = isAllFollowersHide()
+
     ExprContext.ctx.reset()
     for(let i=0;i<varproviders.length;i++){
         varproviders[i].updateContext()
@@ -994,10 +1210,50 @@ function calculate(){
         ExprContext.ctx.changed = false
         for(let m=0;m<exprs.length;m++){
             if(exprs[m].hasResult()){
+                let updated_vars = ""
+                ExprContext.ctx.changedCallback = (name,vlaue,changed)=>{
+                    if(updated_vars.length > 0) updated_vars += "\n"
+                    let sval = vlaue + ""
+                    if(sval.indexOf(".") >= 0){
+                        let digit_len = sval.split(".")[1].length
+                        if(digit_len > 4){
+                            sval = sval.substring(0, sval.length - (digit_len - 4))
+                        }
+                    }
+                    updated_vars += "\\(" + name + "=" + sval + "\\)"
+                }
+
+                let compare_result : boolean | undefined = undefined
+                ExprContext.ctx.compareResultCallback = (expr,result)=>{
+                    if(expr.cmpResult != undefined){
+                        if(compare_result == undefined || compare_result){
+                            compare_result = expr.cmpResult
+                        }
+                    }
+                }
+
                 let result = exprs[m].result()
+
+                if(compare_result != undefined){
+                    if(updated_vars.length > 0) updated_vars += "\n"
+                    if(compare_result){
+                        updated_vars += "成立"
+                    }else{
+                        updated_vars += "不成立"
+                    }
+                }
+                // show ans
+                // if(updated_vars.length > 0) updated_vars += "\n"
+                // updated_vars += "\\(ans=" + result + "\\)"
                 console.log("公式求值：" + exprs[m].toString() + "-> " + result)
-                if(followers[m]){
-                    followers[m].text(result)
+                let _follower = followers[m]
+                if(_follower){
+                    if(_follower.isHide() && need_display_followers)
+                        _follower.show()
+                    if(!_follower.isHide()){
+                        _follower.text(updated_vars)
+                        _follower.follow()
+                    }
                 }
             }
         }
@@ -1011,4 +1267,28 @@ function calculate(){
     }
 }
 
-calculate()
+VarProvider.globalDrawStartCallback = function(){
+    VarProvider.globalDrawStartCallback = undefined
+    for(let i=0;i<varproviders.length;i++){
+        if(!varproviders[i].drawStarted)
+            varproviders[i].start_draw()
+    }
+    calculate()
+}
+
+for(let i=0;i<followers.length;i++){
+    followers[i].setHideAllCallback(function(){
+        for(let i=0;i<followers.length;i++){
+            followers[i].hide()
+        }
+    })
+}
+if(followers.length > 0){
+    window.addEventListener("resize", function(){
+        for(let i=0;i<followers.length;i++){
+            followers[i].follow()
+        }
+    })    
+}
+
+// calculate()
