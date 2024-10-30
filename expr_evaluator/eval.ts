@@ -541,6 +541,8 @@ class ExprFactory{
             "-":"−",
             ">=":"≥",
             "<=":"≤",
+            "(":"⌊⌈",
+            ")":"⌋⌉"
         }
         function mo(predict:string){
             var e = peek();
@@ -745,10 +747,22 @@ class ExprFactory{
         }
         function readValue(readAllCheck = true):Expr{
             if(mo("(")){
-                next()
+                let beg = next().textContent
                 let result = readValue(false)
                 assert(mo(")"), "quote not closed")
-                next()
+                let end = next().textContent
+                if(beg == "⌊"){
+                    assert(end == "⌋", "floor quote not closed")
+                    let r = new MathExpr("floor")
+                    r.addArgument(result)
+                    return r
+                }
+                if(beg == "⌈"){
+                    assert(end == "⌉", "ceil quote not closed")
+                    let r = new MathExpr("ceil")
+                    r.addArgument(result)
+                    return r
+                }
                 return result
             }
             if(mo_sub()){
@@ -1243,6 +1257,9 @@ function calculate(){
                     }
                 }
                 // show ans
+                if(updated_vars.length == 0){
+                    updated_vars = "\\(ans=" + result + "\\)"
+                }
                 // if(updated_vars.length > 0) updated_vars += "\n"
                 // updated_vars += "\\(ans=" + result + "\\)"
                 console.log("公式求值：" + exprs[m].toString() + "-> " + result)
