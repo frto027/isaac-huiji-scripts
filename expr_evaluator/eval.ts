@@ -573,7 +573,7 @@ class ExprFactory{
         }
 
         function isSingleValue(){
-            return tag("mi") || tag("mn") || tag("msubsup") || tag("msub") || tag("msup") || tag("mfrac") || tag("mrow")
+            return tag("mi") || tag("mn") || tag("msubsup") || tag("msub") || tag("msup") || tag("mfrac") || tag("mrow") || tag("msqrt")
         }
 
         function readSingleValueExpr(tag:Element):Expr{
@@ -639,6 +639,12 @@ class ExprFactory{
                     return me.fromMathML(tag.children[1].children[0])
                 }
                 return me.fromMathML(tag)
+            }
+            if(tag.tagName == "msqrt"){
+                let body = me.fromMathML(tag)
+                let r = new MathExpr("sqrt")
+                r.addArgument(body)
+                return r
             }
             unreachable("unknown value")
             return new Expr()
