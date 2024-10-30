@@ -1280,7 +1280,16 @@ for(let m=0;m<maths.length;m++){
         console.log("以下公式没有被解析，因为",e,maths[m])
     }
 }
-
+function cut_value(value:number){
+    let sval = value + ""
+    if(sval.indexOf(".") >= 0){
+        let digit_len = sval.split(".")[1].length
+        if(digit_len > 4){
+            sval = sval.substring(0, sval.length - (digit_len - 4))
+        }
+    }
+    return sval
+}
 function calculate(){
     let need_display_followers = isAllFollowersHide()
 
@@ -1293,16 +1302,10 @@ function calculate(){
         for(let m=0;m<exprs.length;m++){
             if(exprs[m].hasResult()){
                 let updated_vars = ""
-                ExprContext.ctx.changedCallback = (name,vlaue,changed)=>{
+                ExprContext.ctx.changedCallback = (name,value,changed)=>{
+
                     if(updated_vars.length > 0) updated_vars += "\n"
-                    let sval = vlaue + ""
-                    if(sval.indexOf(".") >= 0){
-                        let digit_len = sval.split(".")[1].length
-                        if(digit_len > 4){
-                            sval = sval.substring(0, sval.length - (digit_len - 4))
-                        }
-                    }
-                    updated_vars += "\\(" + name + "=" + sval + "\\)"
+                    updated_vars += "\\(" + name + "=" + cut_value(value) + "\\)"
                 }
 
                 let compare_result : boolean | undefined = undefined
@@ -1326,7 +1329,7 @@ function calculate(){
                 }
                 // show ans
                 if(updated_vars.length == 0){
-                    updated_vars = "\\(ans=" + result + "\\)"
+                    updated_vars = "\\(ans=" + cut_value(result) + "\\)"
                 }
                 // if(updated_vars.length > 0) updated_vars += "\n"
                 // updated_vars += "\\(ans=" + result + "\\)"
