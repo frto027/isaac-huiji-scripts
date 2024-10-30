@@ -22,6 +22,11 @@ class MathJaxHelper{
 enum VarUpdateType{
     NEW,CHANGED,NOT_CHANGED
 }
+
+interface CompareExprLike{
+    cmpResult : boolean|undefined
+}
+
 class ExprContext{
     static ctx:ExprContext = new ExprContext()
 
@@ -33,7 +38,7 @@ class ExprContext{
     rndIntExprValues: Map<number,number> = new Map()
 
     changedCallback:((name:string, value:number, changed:VarUpdateType)=>void)|undefined = undefined
-    compareResultCallback: (expr:CompareExpr, result:boolean)=>void | undefined = undefined
+    compareResultCallback: (expr:CompareExprLike, result:boolean)=>void | undefined = undefined
 
     has(name:string):boolean{
         return this.vars.has(name)
@@ -154,6 +159,7 @@ class BinaryExpr extends Expr{
 }
 
 class AssignExpr extends BinaryExpr{
+    cmpResult : boolean|undefined = undefined
     constructor(left:Expr,right:Expr){
         super(left,right, "=")
     }
@@ -162,11 +168,23 @@ class AssignExpr extends BinaryExpr{
     }
     result(): number {
         //side effect
-        if(this.right.hasResult()){
+        this.cmpResult = undefined
+        let rresult = this.right.hasResult()
+        let lresult = this.left.hasResult()
+        if(rresult && lresult){
+            let r = this.right.result()
+            let l = this.left.result()
+            this.cmpResult = Math.abs(l-r) < 0.0000001
+            if(ExprContext.ctx.compareResultCallback){
+                ExprContext.ctx.compareResultCallback(this, this.cmpResult)
+            }    
+            return l
+        }
+        if(rresult){
             let result = this.right.result()
             this.left.equal_to(result)
             return result
-        }else if(this.left.hasResult()){
+        }else if(lresult){
             let result = this.left.result()
             this.right.equal_to(result)
             return result
@@ -180,7 +198,7 @@ class AssignExpr extends BinaryExpr{
 }
 
 class CompareExpr extends BinaryExpr{
-    static ops = [">","<", ">=","<="]
+    static ops = [">","<", ">=","<=", "!="]
     cmpResult : boolean|undefined = undefined
 
     result(): number {
@@ -197,6 +215,9 @@ class CompareExpr extends BinaryExpr{
         }
         if(this.op == "<="){
             this.cmpResult = L <= R
+        }
+        if(this.op == "!="){
+            this.cmpResult = Math.abs(L-R) >= 0.0000001
         }
         if(ExprContext.ctx.compareResultCallback){
             ExprContext.ctx.compareResultCallback(this, this.cmpResult)
@@ -371,6 +392,56 @@ class FuncExpr extends Expr{
 //     }
 // }
 
+interface SelectExprItem{
+    value:Expr
+    cond:Expr
+}
+//表达式带条件连列
+class SelectExpr extends Expr{
+    items:Array<SelectExprItem> = []
+    hasResult(): boolean {
+        for(let i=0;i<this.items.length;i++){
+            if(!this.items[i].value.hasResult())
+                return false
+            if(!this.items[i].cond.hasResult())
+                return false            
+        }
+        return true
+    }
+    result(): number {
+        for(let i=0;i<this.items.length;i++){
+            let oldCallback = ExprContext.ctx.compareResultCallback
+            let cond = true
+            ExprContext.ctx.compareResultCallback = function(expr, result){
+                if(result == undefined || result == false){
+                    cond = false
+                }
+            }
+            this.items[i].cond.result()
+            ExprContext.ctx.compareResultCallback = oldCallback
+            if(cond){
+                return this.items[i].value.result()
+            }
+        }
+        return NaN
+    }
+    visit(func: (e: Expr) => void): void {
+        for(let i=0;i<this.items.length;i++){
+            func(this.items[i].cond)
+            func(this.items[i].value)
+        }
+    }
+    toString(): string {
+        let r = "{"
+        for(let i=0;i<this.items.length;i++){
+            r +="[if:" + this.items[i].cond.toString() + ",then:"
+            r += this.items[i].value.toString() + "]"
+        }
+        r += "}"
+        return r
+    }
+}
+
 class MathExpr extends FuncExpr{
     static ops = new Set(["ceil","floor","abs","sin","cos","tan","sqrt"])
     result(): number {
@@ -541,6 +612,7 @@ class ExprFactory{
             "-":"−",
             ">=":"≥",
             "<=":"≤",
+            "!=":"≠",
             "(":"⌊⌈",
             ")":"⌋⌉"
         }
@@ -633,9 +705,33 @@ class ExprFactory{
                 return new DivExpr(u,d)
             }
             if(tag.tagName == "mrow"){
+                if(tag.children.length == 3 &&
+                    tag.children[0].tagName == "mo" && tag.children[0].textContent == "{" &&
+                    tag.children[1].tagName == "mtable" &&
+                    tag.children[2].tagName == "mo"){
+                        //单个大括号，带条件连列
+                        let table = tag.children[1]
+                        let r = new SelectExpr()
+                        for(let i=0;i<table.children.length;i++){
+                            let mtr = table.children[i]
+                            assert(mtr.tagName == "mtr", "invalid table line inside select quote")
+                            assert(mtr.children.length == 2, "we need 2 children in one raw inside select quote")
+                            let value = mtr.children[0]
+                            let cond = mtr.children[1]
+                            assert(value.tagName == "mtd" && cond.tagName == "mtd", "invalid tag name inside select quote(need mtd)")
+                            let valueExpr = me.fromMathML(value)
+                            let condExpr = me.fromMathML(cond)
+                            r.items.push({
+                                cond:condExpr,
+                                value:valueExpr
+                            })
+                        }
+                        return r
+                    }
                 if(tag.children.length == 2 && tag.children[1].tagName == "mstyle" &&
                     tag.children[1].children.length == 1
                 ){
+                    //一对不存在的大括号的情况
                     return me.fromMathML(tag.children[1].children[0])
                 }
                 return me.fromMathML(tag)
