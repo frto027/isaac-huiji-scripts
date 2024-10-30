@@ -372,7 +372,7 @@ class FuncExpr extends Expr{
 // }
 
 class MathExpr extends FuncExpr{
-    static ops = new Set(["ceil","floor","abs","sin","cos","tan"])
+    static ops = new Set(["ceil","floor","abs","sin","cos","tan","sqrt"])
     result(): number {
         if(MathExpr.ops.has(this.name)){
             return Math[this.name](this.exprs[0]?.result() ?? NaN)
