@@ -1,3 +1,7 @@
+function displayDebugMessage(){
+    return window["mathJaxCalcDebug"] == "1"
+} 
+
 class MathJaxHelper{
     static mathJaxUpdateTimeout : number|undefined = undefined
     static queues:Set<Element> = new Set()
@@ -334,7 +338,7 @@ class UnaryExpr extends Expr{
         func(this.expr)
     }
     toString(): string {
-        return this.op + this.expr.toString()
+        return "(" + this.op + "(" + this.expr.toString() + "))"
     }
 }
 
@@ -618,33 +622,26 @@ class ExprFactory{
         }
         function mo(predict:string){
             var e = peek();
-            return e.tagName == "mo" && e.textContent == predict || (mo_equal_maps[predict] && mo_equal_maps[predict].indexOf(e.textContent) >= 0)
+            if(e.tagName == "mo"){
+                return e.textContent == predict || (mo_equal_maps[predict] && mo_equal_maps[predict].indexOf(e.textContent) >= 0)
+            }
+            if(e.tagName == "mrow" && e.children.length == 1 && e.children[0].tagName == "mo"){
+                return e.children[0].textContent == predict || (mo_equal_maps[predict] && mo_equal_maps[predict].indexOf(e.children[0].textContent) >= 0)
+            }
+            return false
         }
 
-        function mo_mul(){
-            return mo("*")
-        }
         function is_sub(ch:string){
             return ch == "-" || ch == "−"
-        }
-        function mo_sub(){
-            return mo("-")
-        }
-        function ch(i:number){
-            return peek().children[i]
         }
         function assert(predict, err){
             if(!predict) throw new ExprException(math, err)
         }
         function unreachable(err){throw new ExprException(math, err)}
-        function readUnary():Expr{
-            assert(mo_sub(), "unsupported unary op")
-            next()
-            let expr = readValue()
-            return new NegExpr(expr)
-        }
 
         function isSingleValue(){
+            if(tag("mrow") && peek().children.length == 1 && peek().children[0].tagName == "mo")
+                return false;//一个单独的/斜杠被包裹在mrow里，就是普通的除号
             return tag("mi") || tag("mn") || tag("msubsup") || tag("msub") || tag("msup") || tag("mfrac") || tag("mrow") || tag("msqrt")
         }
 
@@ -766,154 +763,124 @@ class ExprFactory{
             }
             return ret
         }
+        function readValue(readAllCheck = true, priority = -1):Expr{
+            const P_MUL = 700
+            const P_ADDSUB = 500
+            const P_UNARY = 1000
+            const P_CMP_OR_EQUALS = 100
 
-        function readMuls(first:Expr,op:string):Expr{
-            var next 
-            if(mo("(")){
-                next = readValue()
-            }else if(mo_sub()){
-                next = readUnary()
-            }else if(isSingleValue()){
-                next = readSingleValue()
-            }else{
-                assert(false, "not support")
-            }
-            if(op == "*"){
-                next = new MulExpr(first, next)
-            }else{
-                assert(op == "/", "not supported")
-                next = new DivExpr(first, next)
-            }
-            if(hasMore()){
-                if(mo("(")){
-                    return readMuls(next,"*")
+            let first :Expr | undefined = undefined
+
+            while(true){
+                if(!hasMore()){
+                    assert(first != undefined, "no value was readed")
+                    return first
                 }
-               if(mo_mul()){
-                next()
-                return readMuls(next, "*")
-               }
-               if(mo("/")){
-                next()
-                return readMuls(next, "/")
-               }
-               if(isSingleValue()){
-                return readMuls(next, "*")
-               }
-            }
-            return next
-        }
-        function readAdds(first:Expr, op:string):Expr{
-            let _next
-            if(mo("(")){
-                _next = readValue()
-            }else if(mo_sub()){
-                _next = readUnary()
-            }else if(isSingleValue()){
-                _next = readSingleValue()
-            }else{
-                assert(false, "not support")
-            }
-
-            function ret(L,R){
-                if(op == "+") return new AddExpr(L,R);
-                assert(op == "-", "unk op");
-                return new SubExpr(L,R);
-            }
-            if(hasMore()){
-                if(mo("(")){
-                    _next = readMuls(_next, "*")
-                }else if(mo_mul()){
-                    next()
-                    _next = readMuls(_next, "*")
+                if(isSingleValue()){
+                    if(first == undefined){
+                        first = readSingleValue()
+                    }else if(priority < P_MUL){
+                        first = new MulExpr(first, readSingleValue())
+                    }else{
+                        return first
+                    }
+                }else if(mo("(")){
+                    if(first == undefined){
+                        //read it
+                    }else if(priority > P_MUL){
+                        return first
+                    }
+                    let beg = next().textContent
+                    let result = readValue(false)
+                    assert(mo(")"), "quote not closed")
+                    let end = next().textContent
+                    if(beg == "⌊"){
+                        assert(end == "⌋", "floor quote not closed")
+                        let r = new MathExpr("floor")
+                        r.addArgument(result)
+                        return r
+                    }
+                    if(beg == "⌈"){
+                        assert(end == "⌉", "ceil quote not closed")
+                        let r = new MathExpr("ceil")
+                        r.addArgument(result)
+                        return r
+                    }
+                    if(first == undefined)
+                        first = result
+                    else
+                        first = new MulExpr(first, result)
+                }else if(mo("-")){
+                    if(first == undefined){
+                        next()
+                        first = new NegExpr(readValue(false, P_UNARY))
+                    }else if(priority < P_ADDSUB){
+                        next()
+                        first = new SubExpr(first, readValue(false, P_ADDSUB))
+                    }else{
+                        return first
+                    }
+                }else if(mo("+")){
+                    if(first == undefined){
+                        next()
+                        first = readValue(false, P_ADDSUB)
+                    }else if(priority < P_ADDSUB){
+                        next()
+                        first = new AddExpr(first, readValue(false, P_ADDSUB))
+                    }else{
+                        return first
+                    }
+                }else if(mo("*")){
+                    assert(first != undefined, "* can't be the first operator")
+                    if(priority < P_MUL){
+                        next()
+                        first = new MulExpr(first, readValue(false, P_MUL))
+                    }else{
+                        return first
+                    }
                 }else if(mo("/")){
-                    next()
-                    _next = readMuls(_next, "/")
-                }else if(isSingleValue()){
-                    _next = readMuls(_next, "*")
-                }
-
-                if(hasMore()){
-                    if(mo("+")){
+                    assert(first != undefined, "/ can't be the first operator")
+                    if(priority < P_MUL){
                         next()
-                        return readAdds(ret(first, _next), "+")
-                    }else if(mo_sub()){
+                        first = new DivExpr(first, readValue(false, P_MUL))
+                    }else{
+                        return first
+                    }
+                }else if(mo("=")){
+                    if(priority <= P_CMP_OR_EQUALS){
                         next()
-                        return readAdds(ret(first, _next), "-")
-                    }    
+                        first = new AssignExpr(first, readValue(false, P_CMP_OR_EQUALS))
+                    }else{
+                        return first
+                    }
+                }else{
+                    //handle all compares
+                    let something_happened = false
+                    for(let i=0;i<CompareExpr.ops.length;i++){
+                        if(mo(CompareExpr.ops[i])){
+                            if(priority <= P_CMP_OR_EQUALS){
+                                let elem = next()
+                                first = new CompareExpr(first, readValue(false, P_CMP_OR_EQUALS), CompareExpr.ops[i])
+                                me.compareExprs.push({
+                                    elem : elem,
+                                    expr : first as CompareExpr
+                                })
+                                something_happened = true
+                                break
+                            }else{
+                                return first
+                            }
+                        }
+                    }
+                    if(something_happened){
+                        continue
+                    }else{
+                        assert(!readAllCheck || !hasMore(), "unknown ops")
+                        assert(first != undefined, "nothing was read")
+                        return first
+                    }
                 }
             }
-            return ret(first, _next)
-        }
-        function readAssigns(first:Expr):Expr{
-            return new AssignExpr(first, readValue(false))
-        }
-        function readValue(readAllCheck = true):Expr{
-            if(mo("(")){
-                let beg = next().textContent
-                let result = readValue(false)
-                assert(mo(")"), "quote not closed")
-                let end = next().textContent
-                if(beg == "⌊"){
-                    assert(end == "⌋", "floor quote not closed")
-                    let r = new MathExpr("floor")
-                    r.addArgument(result)
-                    return r
-                }
-                if(beg == "⌈"){
-                    assert(end == "⌉", "ceil quote not closed")
-                    let r = new MathExpr("ceil")
-                    r.addArgument(result)
-                    return r
-                }
-                return result
-            }
-            if(mo_sub()){
-                return readUnary()
-            }
-
-            assert(isSingleValue(), "unknown op")
-
-            let first = readSingleValue()
-            if(!hasMore()) return first;
-            if(isSingleValue()){
-                first = readMuls(first, "*")
-            }
-            if(!hasMore()) return first;
-            if(mo("(")){
-                first = readMuls(first, "*")
-            }
-            if(!hasMore()) return first;
-            if(mo_mul()){
-                next()
-                first =  readMuls(first,"*")
-            }
-            if(!hasMore()) return first
-            if(mo("+")){
-                next()
-                first = readAdds(first, "+")
-            }else if(mo_sub()){
-                next()
-                first = readAdds(first, "-")
-            }
-            if(!hasMore()) return first
-            if(mo("=")){
-                next()
-                first =  readAssigns(first)
-            }
-            if(!hasMore()) return first
-            for(let i=0;i<CompareExpr.ops.length;i++){
-                if(mo(CompareExpr.ops[i])){
-                    let elem = next()
-                    first = new CompareExpr(first, readValue(false), CompareExpr.ops[i])
-                    me.compareExprs.push({
-                        elem : elem,
-                        expr : first as CompareExpr
-                    })
-                    break
-                }
-            }
-            assert(!readAllCheck || !hasMore(), "unknown ops")
-            return first
         }
         return readValue()
     }
@@ -1308,8 +1275,7 @@ for(let m=0;m<maths.length;m++){
         }else{
             followers.push(new Follower())
         }
-        console.log(e)
-        console.log(e.toString())    
+        console.log("已解析公式：", e.toString(), e)
     }catch(e){
         console.log("以下公式没有被解析，因为",e,maths[m])
     }
@@ -1364,6 +1330,7 @@ function calculate(){
                 }
                 // if(updated_vars.length > 0) updated_vars += "\n"
                 // updated_vars += "\\(ans=" + result + "\\)"
+                if(displayDebugMessage())
                 console.log("公式求值：" + exprs[m].toString() + "-> " + result)
                 let _follower = followers[m]
                 if(_follower){
@@ -1377,12 +1344,13 @@ function calculate(){
             }
         }
         if(!ExprContext.ctx.changed){
-            console.log("没有值被更新，迭代终止")
+            if(displayDebugMessage())
+                console.log("没有值被更新，迭代终止")
             break
         }
     }
     if(ExprContext.ctx.changed){
-        console.log("公式结果未收敛")
+        console.error("公式结果未收敛")
     }
 }
 
