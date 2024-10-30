@@ -1322,9 +1322,9 @@ function calculate(){
                 if(compare_result != undefined){
                     if(updated_vars.length > 0) updated_vars += "\n"
                     if(compare_result){
-                        updated_vars += "成立"
+                        updated_vars += "✔️成立"
                     }else{
-                        updated_vars += "不成立"
+                        updated_vars += "❌不成立"
                     }
                 }
                 // show ans
