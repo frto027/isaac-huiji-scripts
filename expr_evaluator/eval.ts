@@ -1080,9 +1080,19 @@ class ElementFollower extends Follower{
         let option = {
             xAxis:{
                 name:this.echartsData.x_tag,
-                data:this.echartsData.x
+                splitLine:{
+                    lineStyle:{
+                      color:'black'
+                    }
+                  }
             },
-            yAxis:{},
+            yAxis:{
+                splitLine:{
+                  lineStyle:{
+                    color:'black'
+                  }
+                }
+            },
             tooltip:{
                 trigger:'axis'
             },
@@ -1092,12 +1102,32 @@ class ElementFollower extends Follower{
         this.echartsData.y.forEach((v,k)=>{
             if(this.echartsData.y.size > 1 && k == "ans")
                 return
+            let values = []
+            for(let i=0;i<this.echartsData.x.length;i++){
+                if(v.value[i] != undefined){
+                    values.push([this.echartsData.x[i], v.value[i]])
+                }
+            }
             option.series.push({
                 type:'line',
                 name:k,
-                data:v.value
+                data:values,
+                symbol:'none'
             })
+            option.series.push({
+                type:'line',
+                data:[[this.echartsData.x[-1], v.value[-1]]],
+                symbol: 'circle',
+                symbolSize: 10,
+                itemStyle: {
+                  borderWidth: 3,
+                  borderColor: '#EE6666',
+                  color: 'white'
+                }
+            })
+            
         })
+        console.log(option)
         
         if(this.echartsObject == undefined){
             this.echartsObject = window["echarts"].init(this.echartsElem)
@@ -1608,7 +1638,7 @@ function calculateEcharts(){
     })
 
     //TODO:we need highlight the last variable in echarts
-    //recordValue(VarProvider.lastTouchedVarProvider.getAlighedValue(), idx++)
+    recordValue(VarProvider.lastTouchedVarProvider.getAlighedValue(), -1)
 
     for(let i=0;i<followers.length;i++){
         let e = followers[i].echartsData
