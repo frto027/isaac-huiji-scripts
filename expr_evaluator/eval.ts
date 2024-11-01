@@ -2,7 +2,7 @@ function displayDebugMessage(){
     return window["mathJaxCalcDebug"] == "1"
 } 
 
-window['mw'].loader.load('ext.HuijiDragonstone.echarts')
+// window['mw'].loader.load('ext.HuijiDragonstone.echarts')
 
 class MathJaxHelper{
     static mathJaxUpdateTimeout : number|undefined = undefined
