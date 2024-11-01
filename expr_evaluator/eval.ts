@@ -1132,7 +1132,7 @@ class ElementFollower extends Follower{
             })
             
         })
-        console.log(option)
+        // console.log(option)
         
         if(this.echartsObject == undefined){
             this.echartsObject = window["echarts"].init(this.echartsElem)
