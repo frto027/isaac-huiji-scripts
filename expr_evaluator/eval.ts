@@ -1044,7 +1044,7 @@ class ElementFollower extends Follower{
         // this.root.innerText = ""
         this.root.style.position = 'absolute'
         this.root.style.padding = "2px 8px"
-        this.root.style.backgroundColor = 'rgb(237 225 142 / 86%)'
+        this.root.style.backgroundColor = 'rgb(253 196 144 / 87%)'
         this.root.style.borderRadius = "4px"
         this.root.style.border = "solid 1px black"
         this.follow()
@@ -1121,6 +1121,7 @@ class ElementFollower extends Follower{
             })
             option.series.push({
                 type:'line',
+                name:k,
                 data:[[this.echartsData.x[-1], v.value[-1]]],
                 symbol: 'circle',
                 symbolSize: 10,
