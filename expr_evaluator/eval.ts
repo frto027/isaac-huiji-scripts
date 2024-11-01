@@ -579,15 +579,19 @@ class ExprException{
     }
 }
 
+class fromMathResult{
+    end_idx:number // next idx that needs read
+}
+
 class ExprFactory{
     compareExprs:Array<{
         elem:Element,
         expr:CompareExpr
     }> = []
 
-    fromMathML(math:Element):Expr{
+    fromMathML(math:Element, readAllCheck = true, init_idx = 0, result:fromMathResult|undefined = undefined):Expr{
         let me = this;
-        var idx = 0
+        var idx = init_idx
         function isOperator(e:Element){
             return e.tagName == "mo"
         }
@@ -640,12 +644,25 @@ class ExprFactory{
         function unreachable(err){throw new ExprException(math, err)}
 
         function isSingleValue(){
+
+            const singleValueTagNames = [
+                "mi","mn","msubsup","msub","msup","mfrac","mrow","msqrt"
+            ]
+
+            if(tag("mstyle") && peek().children.length == 1){
+                //有时候内容会被包裹在一个mstyle里面
+                return singleValueTagNames.indexOf(peek().children[0].tagName) >= 0
+            }
             if(tag("mrow") && peek().children.length == 1 && peek().children[0].tagName == "mo")
                 return false;//一个单独的/斜杠被包裹在mrow里，就是普通的除号
-            return tag("mi") || tag("mn") || tag("msubsup") || tag("msub") || tag("msup") || tag("mfrac") || tag("mrow") || tag("msqrt")
+            return singleValueTagNames.indexOf(peek().tagName) >= 0
         }
 
         function readSingleValueExpr(tag:Element):Expr{
+            if(tag.tagName == "mstyle" && tag.children.length == 1){
+                return readSingleValueExpr(tag.children[0])
+            }
+
             if(tag.tagName == "mi"){
                 let varName = tag.textContent||"?"
                 let backup_idx = idx
@@ -730,6 +747,53 @@ class ExprFactory{
                 ){
                     //一对不存在的大括号的情况
                     return me.fromMathML(tag.children[1].children[0])
+                }
+                // \dfrac{1}{\max\left(1,10 - \left\lfloor\dfrac{P_{幸运} }{3}\right\rfloor \right)
+                if(tag.children.length == 2 && tag.children[0].tagName == "mo" && functionKeywords[tag.children[0].textContent]){
+                    //this is a function call
+                    //TODO: read argument
+
+                    let func:typeof FuncExpr = functionKeywords[tag.children[0].textContent]
+                    let funcarg = tag.children[1]
+                    let r = new func(tag.children[0].textContent)
+                    if(funcarg.tagName == "mrow"){
+                        let status : fromMathResult = {
+                            end_idx: 0
+                        }
+
+                        let arg_mo = (x:string)=>{
+                            if(status.end_idx >= funcarg.children.length)
+                                return false
+                            let e = funcarg.children[status.end_idx]
+                            if(e.tagName != "mo")
+                                return false
+                            if(e.textContent == x)
+                                return true
+                            if(mo_equal_maps[x] && mo_equal_maps[x].indexOf(e.textContent) >= 0)
+                                return true
+                            return false
+                        }
+
+                        assert(arg_mo("("), "( needed")
+                        status.end_idx++
+                        if(arg_mo(")")){
+                            assert(status.end_idx + 1 == funcarg.children.length, "some elements is not read")
+                        }else{
+                            while(true){
+                                let expr = me.fromMathML(funcarg, false, status.end_idx, status)
+                                r.addArgument(expr)
+                                if(arg_mo(")")){
+                                    assert(status.end_idx + 1 == funcarg.children.length, "some elements is not read")
+                                    break
+                                }
+                                assert(arg_mo(","), "next argument expected")
+                                status.end_idx++
+                            }    
+                        }
+                    }else{
+                        r.addArgument(readSingleValueExpr(funcarg))
+                    }
+                    return r
                 }
                 return me.fromMathML(tag)
             }
@@ -882,7 +946,11 @@ class ExprFactory{
                 }
             }
         }
-        return readValue()
+        let ret = readValue(readAllCheck)
+        if(result){
+            result.end_idx = idx
+        }
+        return ret
     }
 }
 
