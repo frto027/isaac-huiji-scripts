@@ -1597,6 +1597,8 @@ function calculateEcharts(){
                     }
 
                     let setY = (name:string, value:number)=>{
+                        if(echartData == undefined)
+                            return
                         if(!echartData.y.has(name))
                             echartData.y.set(name, new EchartsYData())
                         echartData.y.get(name).value[idx] = value
