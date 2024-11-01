@@ -2,6 +2,8 @@ function displayDebugMessage(){
     return window["mathJaxCalcDebug"] == "1"
 } 
 
+window['mw'].loader.load('ext.HuijiDragonstone.echarts')
+
 class MathJaxHelper{
     static mathJaxUpdateTimeout : number|undefined = undefined
     static queues:Set<Element> = new Set()
@@ -19,6 +21,7 @@ class MathJaxHelper{
             let arg = []
             MathJaxHelper.queues.forEach(v=>arg.push(v))
             W.MathJax.typeset(arg)
+            calculateEcharts()
         },100)
 
     }
@@ -57,7 +60,7 @@ class ExprContext{
             let v = this.vars.get(name) || value
             if(v == v && value == value && Math.abs(v - value) > 0.0000001){
                 this.changed = true
-                console.log(name, ":", this.vars.get(name), "=>", value)
+                // console.log(name, ":", this.vars.get(name), "=>", value)
                 if(this.changedCallback)this.changedCallback(name,value, VarUpdateType.CHANGED)
             }else{
                 if(this.changedCallback)this.changedCallback(name,value,VarUpdateType.NOT_CHANGED)
@@ -954,6 +957,24 @@ class ExprFactory{
     }
 }
 
+class EchartsYData{
+    value:number[] = []
+}
+
+class EchartsData{
+    x_tag:string
+    data_count:number
+
+    x:number[]
+    y:Map<string, EchartsYData>
+
+    reset(x_tag:string){
+        this.x_tag = x_tag
+        this.x = []
+        this.y = new Map()
+    }
+}
+
 class Follower{
     follow(){}
     text(txt:string){}
@@ -961,6 +982,9 @@ class Follower{
     show(){}
     isHide():boolean{return true}
     setHideAllCallback(f:()=>void){}
+
+    echartsData:EchartsData|undefined = undefined
+    updateEcharts(){}
 }
 
 
@@ -968,8 +992,14 @@ class ElementFollower extends Follower{
     elem:Element
     root:HTMLElement
     txtElem:HTMLElement
+    echartsElem:HTMLElement
+    echartsObject:any = undefined
     is_hide = true
+
+    is_show_echart = false
     
+    echartsData = new EchartsData()
+
     hideAllCallback:()=>void = undefined
     constructor(elem){
         super()
@@ -983,10 +1013,13 @@ class ElementFollower extends Follower{
         this.elem = elem
         this.root = document.createElement("div")
         this.root.innerHTML = `
-        <span><button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-times"></i></button><button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-eye-slash"></i></button></span>
-        <span class='follower-text'></span>`
+        <span><button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-times"></i></button><button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-eye-slash"></i></button><button class='btn btn-link btn-sm follower-echart-show' style='padding:0'>E</button></span>
+        <span class='follower-text'></span><div class='echarts-elem' style='width:400px;height:200px'></div>`
 
         this.txtElem = this.root.querySelector(".follower-text");
+
+        this.echartsElem = this.root.querySelector(".echarts-elem");
+        this.echartsElem.style.display = 'none';
 
         (this.root.querySelector(".follower-hide") as HTMLElement).addEventListener("click",()=>{
             this.hide()
@@ -995,6 +1028,13 @@ class ElementFollower extends Follower{
             if(this.hideAllCallback)
                 this.hideAllCallback()
         });
+
+        (this.root.querySelector(".follower-echart-show") as HTMLElement).addEventListener("click",()=>{
+            this.is_show_echart = true
+            this.updateEcharts()
+        });
+
+        
         this.root.style.display = "none"
         // this.root.innerText = ""
         this.root.style.position = 'absolute'
@@ -1016,7 +1056,10 @@ class ElementFollower extends Follower{
 
     hide(){
         this.is_hide = true
+        this.is_show_echart = false
+        this.echartsElem.style.display = 'none'
         this.root.style.display = "none"
+        this.echartsElem.style.display = "none"
     }
     show(){
         this.is_hide = false
@@ -1028,9 +1071,44 @@ class ElementFollower extends Follower{
     setHideAllCallback(f: () => void): void {
         this.hideAllCallback = f
     }
+
+    updateEcharts(): void {
+        if(!this.is_show_echart)
+            return
+        this.echartsElem.style.display = "block"
+
+        let option = {
+            xAxis:{
+                name:this.echartsData.x_tag,
+                data:this.echartsData.x
+            },
+            yAxis:{},
+            tooltip:{
+                trigger:'axis'
+            },
+            series:[]
+        }
+
+        this.echartsData.y.forEach((v,k)=>{
+            if(this.echartsData.y.size > 1 && k == "ans")
+                return
+            option.series.push({
+                type:'line',
+                name:k,
+                data:v.value
+            })
+        })
+        
+        if(this.echartsObject == undefined){
+            this.echartsObject = window["echarts"].init(this.echartsElem)
+        }
+        this.echartsObject.setOption(option)
+    }
 }
 
 class VarProvider{
+    static lastTouchedVarProvider:VarProvider|undefined = undefined
+
     static mathJaxUpdateTimeout:number|undefined
     static globalDrawStartCallback:()=>void = undefined
     input:HTMLInputElement
@@ -1119,6 +1197,7 @@ class VarProvider{
             }
             me.setValue(value)
             me.callback()
+            VarProvider.lastTouchedVarProvider = me
         });
         clickOverlay.addEventListener("mouseup",function(){
             if(!me.drawStarted) me.start_draw();
@@ -1127,6 +1206,7 @@ class VarProvider{
                me.rnd() 
             }
             need_trigger_mouse_click = true
+            VarProvider.lastTouchedVarProvider = me
         })
         
         let touch_relative_point_x = undefined;
@@ -1148,6 +1228,7 @@ class VarProvider{
 
             need_trigger_mouse_click = true;
             value_init = undefined
+            VarProvider.lastTouchedVarProvider = me
         });
         clickOverlay.addEventListener('touchmove',function(ev:TouchEvent){
             if(me.readonly || touch_identifier == undefined) return;
@@ -1180,6 +1261,7 @@ class VarProvider{
             }
             if(need_trigger_mouse_click){
                 value_init = undefined
+                VarProvider.lastTouchedVarProvider = me
                 me.rnd()
             }
         });
@@ -1205,6 +1287,7 @@ class VarProvider{
             // if(v > high) v = high;
             me.setValue(vNum);
             me.callback()
+            VarProvider.lastTouchedVarProvider = me
         });
 
         // elem.querySelector(".mathvar-inc")?.addEventListener("click",()=>{
@@ -1278,11 +1361,28 @@ class VarProvider{
         MathJaxHelper.updateMathJax([this.textElem])
     }
 
-    updateContext(){
+    getAlighedValue(){
         if(this.intOnly){
-            ExprContext.ctx.set(this.varname, Math.round(this.value / this.intScale) * this.intScale)
+            return Math.round(this.value / this.intScale) * this.intScale
         }else{
-            ExprContext.ctx.set(this.varname, this.value)
+            return this.value
+        }
+
+    }
+
+    updateContext(){
+        ExprContext.ctx.set(this.varname, this.getAlighedValue())
+    }
+
+    forEachValues(func:(v:number)=>void, step = 200){
+        if(this.intOnly){
+            for(let i=Math.ceil(this.low / this.intScale); i<=Math.floor(this.high / this.intScale);i+=1){
+                func(i * this.intScale)
+            }
+        }else{
+            for(let i=0;i<step;i++){
+                func(this.p2v(i/(step-1)))
+            }
         }
     }
 }
@@ -1312,7 +1412,9 @@ function isAllFollowersHide(){
 
 class WikiMathExpressionProperty{
     show_result:boolean
+    show_percent:boolean
 }
+let props:Array<WikiMathExpressionProperty> = []
 
 function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
     while(elem.tagName == "math" || elem.tagName.indexOf("mjx-")>=0  || elem.tagName.indexOf("MJX-")>=0){
@@ -1325,6 +1427,7 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
     if(elem?.hasAttribute("data-calc") ?? false){
         if(elem.getAttribute("data-calc") == "1"){
             prop.show_result = (elem.getAttribute("data-showresult") || "1") == "1"
+            prop.show_percent = (elem.getAttribute("data-percent") || "0") == "1"
             return true
         }
     }
@@ -1343,19 +1446,26 @@ for(let m=0;m<maths.length;m++){
         }else{
             followers.push(new Follower())
         }
+        props.push(prop)
         console.log("已解析公式：", e.toString(), e)
     }catch(e){
         console.log("以下公式没有被解析，因为",e,maths[m])
     }
 }
-function cut_value(value:number){
+function cut_value(value:number, prop:WikiMathExpressionProperty){
+    let cut_digit_to = 4
+    if(prop.show_percent)
+        value = value * 100
+        cut_digit_to = 2
     let sval = value + ""
     if(sval.indexOf(".") >= 0){
         let digit_len = sval.split(".")[1].length
-        if(digit_len > 4){
-            sval = sval.substring(0, sval.length - (digit_len - 4))
+        if(digit_len > cut_digit_to){
+            sval = sval.substring(0, sval.length - (digit_len - cut_digit_to))
         }
     }
+    if(prop.show_percent)
+        sval += "\\%"
     return sval
 }
 function calculate(){
@@ -1373,7 +1483,7 @@ function calculate(){
                 ExprContext.ctx.changedCallback = (name,value,changed)=>{
 
                     if(updated_vars.length > 0) updated_vars += "\n"
-                    updated_vars += "\\(" + name + "=" + cut_value(value) + "\\)"
+                    updated_vars += "\\(" + name + "=" + cut_value(value, props[m]) + "\\)"
                 }
 
                 let compare_result : boolean | undefined = undefined
@@ -1397,7 +1507,7 @@ function calculate(){
                 }
                 // show ans
                 if(updated_vars.length == 0){
-                    updated_vars = "\\(ans=" + cut_value(result) + "\\)"
+                    updated_vars = "\\(ans=" + cut_value(result, props[m]) + "\\)"
                 }
                 // if(updated_vars.length > 0) updated_vars += "\n"
                 // updated_vars += "\\(ans=" + result + "\\)"
@@ -1422,6 +1532,90 @@ function calculate(){
     }
     if(ExprContext.ctx.changed){
         console.error("公式结果未收敛")
+    }
+}
+
+function calculateEcharts(){
+    if(VarProvider.lastTouchedVarProvider == undefined)
+        return;
+    for(let i=0;i<followers.length;i++){
+        let e = followers[i].echartsData
+        if(e)
+            e.reset(VarProvider.lastTouchedVarProvider.varname)
+    }
+
+    let idx = 0
+
+    let recordValue = (v:number, idx:number)=>{
+        //calculate every things
+        ExprContext.ctx.reset()
+        for(let i=0;i<varproviders.length;i++){
+            varproviders[i].updateContext()
+        }
+        ExprContext.ctx.set(VarProvider.lastTouchedVarProvider.varname, v)
+
+        //TODO: calculate everythings
+
+
+        for(let i=0;i<100;i++){
+            ExprContext.ctx.changed = false
+            for(let m=0;m<exprs.length;m++){
+                if(exprs[m].hasResult()){
+                    let echartData = followers[m].echartsData
+                    if(echartData){
+                        echartData.x[idx] = v
+                    }
+
+                    let setY = (name:string, value:number)=>{
+                        if(!echartData.y.has(name))
+                            echartData.y.set(name, new EchartsYData())
+                        echartData.y.get(name).value[idx] = value
+                    }
+                    ExprContext.ctx.changedCallback = (name,value,changed)=>{
+                        if(changed != VarUpdateType.NOT_CHANGED)
+                        setY(name,value)
+                    }
+    
+                    let compare_result : boolean | undefined = undefined
+                    ExprContext.ctx.compareResultCallback = (expr,result)=>{
+                        if(expr.cmpResult != undefined){
+                            if(compare_result == undefined || compare_result){
+                                compare_result = expr.cmpResult
+                            }
+                        }
+                    }
+
+                    let ans = exprs[m].result()
+                    if(compare_result != undefined){
+                        setY("cmp", compare_result ? 1 : 0)
+                    }
+                    setY("ans", ans)
+
+                    ExprContext.ctx.changedCallback = ()=>{}
+                    ExprContext.ctx.compareResultCallback = ()=>{}
+                }
+            }
+            if(!ExprContext.ctx.changed){
+                break
+            }
+        }
+
+
+    }
+
+    VarProvider.lastTouchedVarProvider.forEachValues((v)=>{
+        recordValue(v, idx++)
+    })
+
+    //TODO:we need highlight the last variable in echarts
+    //recordValue(VarProvider.lastTouchedVarProvider.getAlighedValue(), idx++)
+
+    for(let i=0;i<followers.length;i++){
+        let e = followers[i].echartsData
+        if(e){
+            e.data_count = idx
+        }
+        followers[i].updateEcharts()
     }
 }
 
