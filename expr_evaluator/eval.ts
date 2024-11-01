@@ -656,6 +656,8 @@ class ExprFactory{
                 //有时候内容会被包裹在一个mstyle里面
                 return singleValueTagNames.indexOf(peek().children[0].tagName) >= 0
             }
+            if(tag("mo") && functionKeywords[peek().textContent] != undefined)
+                return true
             if(tag("mrow") && peek().children.length == 1 && peek().children[0].tagName == "mo")
                 return false;//一个单独的/斜杠被包裹在mrow里，就是普通的除号
             return singleValueTagNames.indexOf(peek().tagName) >= 0
@@ -664,6 +666,9 @@ class ExprFactory{
         function readSingleValueExpr(tag:Element):Expr{
             if(tag.tagName == "mstyle" && tag.children.length == 1){
                 return readSingleValueExpr(tag.children[0])
+            }
+            if(tag.tagName == "mo" && functionKeywords[tag.textContent] != undefined){
+                return new Variable(tag.textContent,undefined)
             }
 
             if(tag.tagName == "mi"){
