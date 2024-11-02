@@ -994,6 +994,8 @@ class EchartsData{
 }
 
 class Follower{
+    prop:WikiMathExpressionProperty
+
     follow(){}
     text(txt:string){}
     hide(){}
@@ -1113,7 +1115,7 @@ class ElementFollower extends Follower{
             return
         this.echartsElem.style.display = "block"
 
-        function fixed(x:number){
+        let fixed = (x:number)=>{
             let r:string = x.toFixed(4)
             let tail = r.length
 
@@ -1123,10 +1125,44 @@ class ElementFollower extends Follower{
                 tail--
             return r.substring(0,tail)
         }
+        let fixedY = (x:number)=>{
+            let show_percent = this.prop && this.prop.show_percent
+
+            let r:string = x.toFixed(4)
+            if(show_percent){
+                r = (x * 100).toFixed(2)
+            }
+            let tail = r.length
+
+            while(tail > 0 && r[tail-1] == '0')
+                tail--
+            if(tail > 0 && r[tail-1] == '.')
+                tail--
+            return r.substring(0,tail) + (show_percent ? "%" : "")
+        }
+        function cleanup_mathjax(n:string):string{
+            let m = new RegExp("^(.*)_\\{?(.*?)\\}?$").exec(n)
+            if(m){
+                return m[1] + m[2]
+            }else{
+                return n
+            }
+        }
+        function escapeHtml(x:string):string{
+            return window['echarts'].format.encodeHTML(x)
+        }
+        function name_to_html(n:string):string{
+            let m = new RegExp("^(.*)_\\{?(.*?)\\}?$").exec(n)
+            if(m){
+                return escapeHtml(m[1]) + "<sub>" + escapeHtml(m[2]) + "</sub>"
+            }else{
+                return escapeHtml(n)
+            }
+        }
 
         let option = {
             xAxis:{
-                name:this.echartsData.x_tag,
+                name:cleanup_mathjax(this.echartsData.x_tag).replace(new RegExp("[<>]"),""), /* 无需过滤，意思一下 */
                 splitLine:{
                     lineStyle:{
                       color:'black'
@@ -1138,6 +1174,11 @@ class ElementFollower extends Follower{
                   lineStyle:{
                     color:'black'
                   }
+                },
+                axisLabel:{
+                    formatter:(v)=>{
+                        return fixedY(v)
+                    }
                 }
             },
             title:{show:false},
@@ -1150,19 +1191,33 @@ class ElementFollower extends Follower{
               },
             tooltip:{
                 trigger:'axis',
+                formatter:(p:any)=>{
+                    let ret = ""
+                    for(let i=0;i<p.length;i++){
+                        if(i==0){
+                            ret = "当" + name_to_html(this.echartsData.x_tag) + "=" + fixed(p[i].data[0]) + "时<br>"
+                        }else{
+                            ret += "<br>"
+                        }
+                        ret += name_to_html(p[i].seriesName) + "=" + fixedY(p[i].data[1])
+                    }
+                    return ret
+                },
                 valueFormatter:function(v:number){
-                    return fixed(v)
+                    return fixedY(v)
                 }
             },
             series:[]
         }
 
-
         this.echartsData.y.forEach((v,k)=>{
             if(this.echartsData.y.size > 1 && k == "ans")
                 return
+
+            let yname = cleanup_mathjax(k).replace(new RegExp("[<>]"),"")
+
             if(this.echartsData.y.size == 1){
-                option.xAxis.name = k
+                option.yAxis['name'] = yname
             }
     
             let values = []
@@ -1173,7 +1228,7 @@ class ElementFollower extends Follower{
             }
             option.series.push({
                 type:'line',
-                name:k,
+                name:yname,
                 data:values,
                 symbol:'none',
             })
@@ -1181,16 +1236,17 @@ class ElementFollower extends Follower{
             for(let i=0;i<100;i++){
                 if(this.echartsData.x[-1-i] == undefined)
                     break;
+
                 option.series.push({
                     type:'line',
-                    name:k,
+                    name:yname,
                     tooltip:{show:false},
                     label: {
                         "show": true, 
                         textBorderColor: 'white',
                         textBorderWidth:2,
                         formatter: (params) => {
-                            return "(" + fixed(params.data[0]) + "," + fixed(params.data[1]) + ")"
+                            return "(" + fixed(params.data[0]) + ", " + fixedY(params.data[1]) + ")"
                        }
                    },
                    data:[[this.echartsData.x[-1-i], v.value[-1-i]]],
@@ -1617,6 +1673,7 @@ for(let m=0;m<maths.length;m++){
             followers.push(new Follower())
         }
         props.push(prop)
+        followers[m].prop = prop
         console.log("已解析公式：", e.toString(), e)
     }catch(e){
         console.log("以下公式没有被解析，因为",e,maths[m])
