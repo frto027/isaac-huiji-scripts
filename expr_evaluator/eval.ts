@@ -2,7 +2,11 @@ function displayDebugMessage(){
     return window["mathJaxCalcDebug"] == "1"
 } 
 
-// window['mw'].loader.load('ext.HuijiDragonstone.echarts')
+{
+    let edom = document.createElement("script")
+    edom.src = 'https://spa.huijistatic.com/www/echarts/5.4.0/echarts.min.js'
+    document.body.append(edom)
+}
 
 class MathJaxHelper{
     static mathJaxUpdateTimeout : number|undefined = undefined
@@ -647,7 +651,8 @@ class ExprFactory{
         function unreachable(err){throw new ExprException(math, err)}
 
         function isSingleValue(){
-
+            if(tag("mi") && peek().textContent == "%")
+                return false
             const singleValueTagNames = [
                 "mi","mn","msubsup","msub","msup","mfrac","mrow","msqrt"
             ]
@@ -918,6 +923,13 @@ class ExprFactory{
                     }else{
                         return first
                     }
+                }else if(peek().tagName == "mi" && peek().textContent == "%"){
+                    if(priority < P_MUL){
+                        next()
+                        first = new DivExpr(first, new ConstExpr(100))
+                    }else{
+                        return first
+                    }
                 }else if(mo("=")){
                     if(priority <= P_CMP_OR_EQUALS){
                         next()
@@ -990,6 +1002,8 @@ class Follower{
 
     echartsData:EchartsData|undefined = undefined
     updateEcharts(){}
+
+    setZIndex(idx:number){}
 }
 
 
@@ -1018,8 +1032,13 @@ class ElementFollower extends Follower{
         this.elem = elem
         this.root = document.createElement("div")
         this.root.innerHTML = `
-        <span><button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-times"></i></button><button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-eye-slash"></i></button><button class='btn btn-link btn-sm follower-echart-show' style='padding:0'>E</button></span>
-        <span class='follower-text'></span><div class='echarts-elem' style='width:400px;height:200px'></div>`
+        <span class='follower-text'></span>
+        <span>
+        <button class='btn btn-link btn-sm follower-echart-show' style='padding:0'>F(x)</button>
+        <button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-eye-slash"></i></button>
+        <button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-times"></i></button>
+        </span>
+        <div class='echarts-elem' style='width:400px;height:200px'></div>`
 
         this.txtElem = this.root.querySelector(".follower-text");
 
@@ -1035,13 +1054,20 @@ class ElementFollower extends Follower{
         });
 
         (this.root.querySelector(".follower-echart-show") as HTMLElement).addEventListener("click",()=>{
-            this.is_show_echart = true
-            this.updateEcharts()
+            if(this.is_show_echart){
+                this.is_show_echart = false
+                this.echartsElem.style.display = "none"
+            }else{
+                this.is_show_echart = true
+                this.updateEcharts()    
+                updateFrontFollower(this)
+            }
         });
 
         
         this.root.style.display = "none"
         // this.root.innerText = ""
+        this.root.style.textAlign = "right"
         this.root.style.position = 'absolute'
         this.root.style.padding = "2px 8px"
         this.root.style.backgroundColor = 'rgb(253 196 144 / 87%)'
@@ -1049,6 +1075,10 @@ class ElementFollower extends Follower{
         this.root.style.border = "solid 1px black"
         this.follow()
         document.body.append(this.root)
+    }
+
+    setZIndex(idx: number): void {
+        this.root.style.zIndex = idx + ""
     }
     follow(){
         this.root.style.left = (this.elem.getBoundingClientRect().left + window.scrollX + 10) + "px"
@@ -1098,8 +1128,19 @@ class ElementFollower extends Follower{
                   }
                 }
             },
+            title:{show:false},
+            legend:{show:false},
+            grid: {
+                left:  40,
+                right: 70,
+                top: 40,
+                bottom: 30
+              },
             tooltip:{
-                trigger:'axis'
+                trigger:'axis',
+                valueFormatter:function(v:number){
+                    return (v).toFixed(4)
+                }
             },
             series:[]
         }
@@ -1117,20 +1158,34 @@ class ElementFollower extends Follower{
                 type:'line',
                 name:k,
                 data:values,
-                symbol:'none'
+                symbol:'none',
             })
-            option.series.push({
-                type:'line',
-                name:k,
-                data:[[this.echartsData.x[-1], v.value[-1]]],
-                symbol: 'circle',
-                symbolSize: 10,
-                itemStyle: {
-                  borderWidth: 3,
-                  borderColor: '#EE6666',
-                  color: 'white'
-                }
-            })
+
+            for(let i=0;i<100;i++){
+                if(this.echartsData.x[-1-i] == undefined)
+                    break;
+                option.series.push({
+                    type:'line',
+                    name:k,
+                    tooltip:{show:false},
+                    label: {
+                        "show": true, 
+                        textBorderColor: 'white',
+                        textBorderWidth:2,
+                        formatter: function (params) {
+                           return (params.data[1]).toFixed(4);
+                       }
+                   },
+                   data:[[this.echartsData.x[-1-i], v.value[-1-i]]],
+                    symbol: 'circle',
+                    symbolSize: 5,
+                    itemStyle: {
+                        borderWidth: 2,
+                        borderColor: '#EE6666',
+                        color: i == 0 ? 'green' : 'white'
+                    }
+                })
+            }
             
         })
         // console.log(option)
@@ -1157,6 +1212,8 @@ class VarProvider{
     callback:()=>void
     value:number = NaN
     rndType:string = "none"
+
+    highlightValues:number[] = []
 
     drawStarted = false
 
@@ -1200,9 +1257,19 @@ class VarProvider{
         this.low = +(elem.getAttribute("data-mathvar-low") || "0")
         this.init = +(elem.getAttribute("data-mathvar-init") || "1")
         this.high = +(elem.getAttribute("data-mathvar-high") || "10")
-        this.intOnly = elem.getAttribute("data-mathvar-int") == "true"
+        this.intOnly = elem.getAttribute("data-mathvar-int") == "true" || elem.getAttribute("data-mathvar-int") == "1"
         this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
+
+        {
+            let highlights_str = (elem.getAttribute("data-highlight") || "").split(",")
+            for(let i=0;i<highlights_str.length;i++){
+                let s = highlights_str[i]
+                if(s != ""){
+                    this.highlightValues.push(+s)
+                }
+            }
+        }
 
         this.setValue(this.init)
 
@@ -1439,6 +1506,13 @@ let factory = new ExprFactory()
 let exprs:Array<Expr> = []
 let followers :Array<Follower> = []
 
+function updateFrontFollower(follower:Follower){
+    for(let i=0;i<followers.length;i++){
+        followers[i].setZIndex(0)
+    }
+    follower.setZIndex(1)
+}
+
 function isAllFollowersHide(){
     for(var i=0;i<followers.length;i++)
         if(!followers[i].isHide())
@@ -1493,13 +1567,9 @@ function cut_value(value:number, prop:WikiMathExpressionProperty){
     if(prop.show_percent)
         value = value * 100
         cut_digit_to = 2
-    let sval = value + ""
-    if(sval.indexOf(".") >= 0){
-        let digit_len = sval.split(".")[1].length
-        if(digit_len > cut_digit_to){
-            sval = sval.substring(0, sval.length - (digit_len - cut_digit_to))
-        }
-    }
+    
+    let sval = value.toFixed(cut_digit_to)
+
     if(prop.show_percent)
         sval += "\\%"
     return sval
@@ -1645,8 +1715,11 @@ function calculateEcharts(){
         recordValue(v, idx++)
     })
 
-    //TODO:we need highlight the last variable in echarts
+    //we need highlight the last variable in echarts
     recordValue(VarProvider.lastTouchedVarProvider.getAlighedValue(), -1)
+    for(let i=0;i<VarProvider.lastTouchedVarProvider.highlightValues.length;i++){
+        recordValue(VarProvider.lastTouchedVarProvider.highlightValues[i], -2 - i)
+    }
 
     for(let i=0;i<followers.length;i++){
         let e = followers[i].echartsData
