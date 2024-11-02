@@ -1078,6 +1078,10 @@ class ElementFollower extends Follower{
         this.root.style.border = "solid 1px black"
         this.follow()
         document.body.append(this.root)
+
+        this.root.addEventListener("click",()=>{
+            updateFrontFollower(this)
+        })
     }
 
     setZIndex(idx: number): void {
@@ -1114,7 +1118,7 @@ class ElementFollower extends Follower{
         if(!this.is_show_echart)
             return
         this.echartsElem.style.display = "block"
-
+        
         let fixed = (x:number)=>{
             let r:string = x.toFixed(4)
             let tail = r.length
@@ -1667,13 +1671,15 @@ for(let m=0;m<maths.length;m++){
     try{
         let e = factory.fromMathML(maths[m])
         exprs.push(e)
+        let follower
         if(prop.show_result){
-            followers.push(new ElementFollower(maths[m]))
+            follower = new ElementFollower(maths[m])
         }else{
-            followers.push(new Follower())
+            follower = new Follower()
         }
+        followers.push(follower)
         props.push(prop)
-        followers[m].prop = prop
+        follower.prop = prop
         console.log("已解析公式：", e.toString(), e)
     }catch(e){
         console.log("以下公式没有被解析，因为",e,maths[m])
