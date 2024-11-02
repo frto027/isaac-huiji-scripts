@@ -70,6 +70,7 @@ class ExprContext{
                 if(this.changedCallback)this.changedCallback(name,value,VarUpdateType.NOT_CHANGED)
             }
         }else{
+            this.changed = true
             if(this.changedCallback)this.changedCallback(name,value,VarUpdateType.NEW)
         }
         this.vars.set(name, value)
@@ -1156,9 +1157,14 @@ class ElementFollower extends Follower{
             series:[]
         }
 
+
         this.echartsData.y.forEach((v,k)=>{
             if(this.echartsData.y.size > 1 && k == "ans")
                 return
+            if(this.echartsData.y.size == 1){
+                option.xAxis.name = k
+            }
+    
             let values = []
             for(let i=0;i<this.echartsData.x.length;i++){
                 if(v.value[i] != undefined){
@@ -1232,7 +1238,8 @@ class VarProvider{
     textElem:HTMLElement
     clickElement:HTMLElement
 
-    
+    isLocked = false
+    lockBtn:HTMLElement|undefined
 
     readonly = false
     constructor(elem:Element, callback){
@@ -1254,13 +1261,16 @@ class VarProvider{
                 <div class="mathvar-percent" style="height: 100%; background-color: rgba(132, 130, 137, 0.16); position: absolute; border-radius: 8px; user-select: none; width: 40.5%;"></div>
                 <div class="mathvar-click" style="position: absolute; inset: 0px;"></div>
             </div>
+            <button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:18px"><i class="fa fa-unlock" style='color:gray'></i></button>
         `
         
         let container = elem.querySelector(".mathvar-input-container")!
         this.textElem = elem.querySelector(".mathvar-text")!
         this.percentElem = elem.querySelector(".mathvar-percent")!
+        this.lockBtn = elem.querySelector(".mathvar-lock-btn")!
         let clickOverlay = elem.querySelector(".mathvar-click")!
         this.clickElement = clickOverlay as HTMLElement
+        
         
         // input!.innerHTML = "<input class='mathvar-inputbox form-control' style='display:inline;width:70px;border-radius:5px' type='number'>"
         // let inputBox = elem.querySelector(".mathvar-inputbox")
@@ -1311,7 +1321,8 @@ class VarProvider{
             }
             me.setValue(value)
             me.callback()
-            VarProvider.lastTouchedVarProvider = me
+            if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
+                VarProvider.lastTouchedVarProvider = me
         });
         clickOverlay.addEventListener("mouseup",function(){
             if(!me.drawStarted) me.start_draw();
@@ -1320,7 +1331,8 @@ class VarProvider{
                me.rnd() 
             }
             need_trigger_mouse_click = true
-            VarProvider.lastTouchedVarProvider = me
+            if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
+                VarProvider.lastTouchedVarProvider = me
         })
         
         let touch_relative_point_x = undefined;
@@ -1342,7 +1354,8 @@ class VarProvider{
 
             need_trigger_mouse_click = true;
             value_init = undefined
-            VarProvider.lastTouchedVarProvider = me
+            if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
+                VarProvider.lastTouchedVarProvider = me
         });
         clickOverlay.addEventListener('touchmove',function(ev:TouchEvent){
             if(me.readonly || touch_identifier == undefined) return;
@@ -1375,7 +1388,8 @@ class VarProvider{
             }
             if(need_trigger_mouse_click){
                 value_init = undefined
-                VarProvider.lastTouchedVarProvider = me
+                if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
+                    VarProvider.lastTouchedVarProvider = me
                 me.rnd()
             }
         });
@@ -1401,8 +1415,21 @@ class VarProvider{
             // if(v > high) v = high;
             me.setValue(vNum);
             me.callback()
-            VarProvider.lastTouchedVarProvider = me
+            if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
+                VarProvider.lastTouchedVarProvider = me
         });
+
+        this.lockBtn.addEventListener("click",()=>{
+            if(this.isLocked){
+                this.unlock()
+            }else{
+                if(VarProvider.lastTouchedVarProvider && VarProvider.lastTouchedVarProvider.isLocked){
+                    VarProvider.lastTouchedVarProvider.unlock()
+                }
+                VarProvider.lastTouchedVarProvider = this
+                this.lock()
+            }
+        })
 
         // elem.querySelector(".mathvar-inc")?.addEventListener("click",()=>{
         //     this.setValue(1+ +this.input.value)
@@ -1416,6 +1443,28 @@ class VarProvider{
         //     this.setValue(+this.input.value)
         //     this.callback()
         // })
+    }
+
+    lock(){
+        if(this.isLocked){
+            return
+        }
+        this.isLocked = true
+        if(this.lockBtn)
+            this.lockBtn.innerHTML = '<i class="fa fa-lock" style="color:white"></i>'
+    }
+    unlock(){
+        if(!this.isLocked){
+            return
+        }
+        this.isLocked = false
+        if(this.lockBtn)
+            this.lockBtn.innerHTML = '<i class="fa fa-unlock" style="color:gray"></i>'
+    }
+
+    hideLockBtn(){
+        this.lockBtn.remove()
+        this.lockBtn = undefined
     }
 
     start_draw(){
@@ -1592,9 +1641,13 @@ function calculate(){
     for(let i=0;i<varproviders.length;i++){
         varproviders[i].updateContext()
     }
+    let expr_is_calculated = []
     for(let i=0;i<100;i++){
-        ExprContext.ctx.changed = false
+        let someexpr_changed = false
         for(let m=0;m<exprs.length;m++){
+            ExprContext.ctx.changed = false
+            if(expr_is_calculated[m])
+                continue
             if(exprs[m].hasResult()){
                 let updated_vars = ""
                 ExprContext.ctx.changedCallback = (name,value,changed)=>{
@@ -1639,9 +1692,14 @@ function calculate(){
                         _follower.follow()
                     }
                 }
+
+                if(ExprContext.ctx.changed){
+                    someexpr_changed = true
+                    expr_is_calculated[m] = true
+                }
             }
         }
-        if(!ExprContext.ctx.changed){
+        if(!someexpr_changed){
             if(displayDebugMessage())
                 console.log("没有值被更新，迭代终止")
             break
@@ -1671,12 +1729,13 @@ function calculateEcharts(){
         }
         ExprContext.ctx.set(VarProvider.lastTouchedVarProvider.varname, v)
 
-        //TODO: calculate everythings
-
-
+        let expr_is_calculated = []
         for(let i=0;i<100;i++){
-            ExprContext.ctx.changed = false
+            let someexpr_changed = false
             for(let m=0;m<exprs.length;m++){
+                if(expr_is_calculated[m])
+                    continue
+                ExprContext.ctx.changed = false
                 if(exprs[m].hasResult()){
                     let echartData = followers[m].echartsData
                     if(echartData){
@@ -1712,9 +1771,14 @@ function calculateEcharts(){
 
                     ExprContext.ctx.changedCallback = ()=>{}
                     ExprContext.ctx.compareResultCallback = ()=>{}
+
+                    if(ExprContext.ctx.changed){
+                        someexpr_changed = true
+                        expr_is_calculated[m] = true
+                    }
                 }
             }
-            if(!ExprContext.ctx.changed){
+            if(!someexpr_changed){
                 break
             }
         }
@@ -1763,6 +1827,10 @@ if(followers.length > 0){
             followers[i].follow()
         }
     })    
+}
+
+if(varproviders.length == 1){
+    varproviders[0].hideLockBtn()
 }
 
 // calculate()
