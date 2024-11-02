@@ -1112,6 +1112,17 @@ class ElementFollower extends Follower{
             return
         this.echartsElem.style.display = "block"
 
+        function fixed(x:number){
+            let r:string = x.toFixed(4)
+            let tail = r.length
+
+            while(tail > 0 && r[tail-1] == '0')
+                tail--
+            if(tail > 0 && r[tail-1] == '.')
+                tail--
+            return r.substring(0,tail)
+        }
+
         let option = {
             xAxis:{
                 name:this.echartsData.x_tag,
@@ -1139,7 +1150,7 @@ class ElementFollower extends Follower{
             tooltip:{
                 trigger:'axis',
                 valueFormatter:function(v:number){
-                    return (v).toFixed(4)
+                    return fixed(v)
                 }
             },
             series:[]
@@ -1172,8 +1183,8 @@ class ElementFollower extends Follower{
                         "show": true, 
                         textBorderColor: 'white',
                         textBorderWidth:2,
-                        formatter: function (params) {
-                           return (params.data[1]).toFixed(4);
+                        formatter: (params) => {
+                            return "(" + fixed(params.data[0]) + "," + fixed(params.data[1]) + ")"
                        }
                    },
                    data:[[this.echartsData.x[-1-i], v.value[-1-i]]],
