@@ -1480,14 +1480,20 @@ class VarProvider{
         });
 
         this.lockBtn.addEventListener("click",()=>{
+            if(!me.drawStarted) me.start_draw()
+
             if(this.isLocked){
                 this.unlock()
             }else{
                 if(VarProvider.lastTouchedVarProvider && VarProvider.lastTouchedVarProvider.isLocked){
                     VarProvider.lastTouchedVarProvider.unlock()
                 }
-                VarProvider.lastTouchedVarProvider = this
-                this.lock()
+                if(VarProvider.lastTouchedVarProvider != this){
+                    VarProvider.lastTouchedVarProvider = this
+                    me.callback()
+                }
+                this.lock()    
+
             }
         })
 
