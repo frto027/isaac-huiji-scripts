@@ -479,6 +479,12 @@ class MathExpr extends FuncExpr{
     }
 }
 
+class LgExpr extends FuncExpr{
+    result(): number {
+        return Math.log10(this.exprs[0]?.result() ?? NaN)
+    }
+}
+
 class MaxExpr extends FuncExpr{
     result(): number {
         let R = -Infinity
@@ -583,7 +589,8 @@ let functionKeywords = {
     "max":MaxExpr,
     "min":MinExpr,
     "randFloat":RandomFloatExpr,
-    "randInt":RandomIntExpr
+    "randInt":RandomIntExpr,
+    "lg":LgExpr
 }
 
 MathExpr.ops.forEach(v=>{
@@ -645,7 +652,8 @@ class ExprFactory{
             "<=":"≤",
             "!=":"≠",
             "(":"⌊⌈",
-            ")":"⌋⌉"
+            ")":"⌋⌉",
+            "":'⁡' /* invisible character here */
         }
         function mo(predict:string){
             var e = peek();
@@ -780,8 +788,6 @@ class ExprFactory{
                 // \dfrac{1}{\max\left(1,10 - \left\lfloor\dfrac{P_{幸运} }{3}\right\rfloor \right)
                 if(tag.children.length == 2 && tag.children[0].tagName == "mo" && functionKeywords[tag.children[0].textContent]){
                     //this is a function call
-                    //TODO: read argument
-
                     let func:typeof FuncExpr = functionKeywords[tag.children[0].textContent]
                     let funcarg = tag.children[1]
                     let r = new func(tag.children[0].textContent)
@@ -839,7 +845,8 @@ class ExprFactory{
         function readSingleValue():Expr{
 
             let ret = readSingleValueExpr(next())
-
+            while(hasMore() && mo(""))
+                next()//empty next inside sin function
             if(ret.isVariableExpr() && functionKeywords[ret.toString()] && hasMore() &&mo("(")){
                 next()
                 let func:typeof FuncExpr = functionKeywords[ret.toString()]
@@ -865,6 +872,9 @@ class ExprFactory{
             let first :Expr | undefined = undefined
 
             while(true){
+                while(hasMore() && mo(""))
+                    next()//ignore empty mo
+
                 if(!hasMore()){
                     assert(first != undefined, "no value was readed")
                     return first
