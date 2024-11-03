@@ -1034,6 +1034,7 @@ class ElementFollower extends Follower{
     txtElem:HTMLElement
     echartsElem:HTMLElement
     echartsObject:any = undefined
+    echartsMarkPointCount:number = 0
     is_hide = true
 
     is_show_echart = false
@@ -1041,6 +1042,7 @@ class ElementFollower extends Follower{
     echartsData = new EchartsData()
 
     hideAllCallback:()=>void = undefined
+
     constructor(elem){
         super()
         while(elem.tagName == "math" || elem.tagName.indexOf("mjx-")>=0  || elem.tagName.indexOf("MJX-")>=0){
@@ -1215,6 +1217,7 @@ class ElementFollower extends Follower{
             }
         }
 
+        let mark_point_count = 0
         let option = {
             xAxis:{
                 name:cleanup_mathjax(this.echartsData.x_tag).replace(new RegExp("[<>]"),""), /* 无需过滤，意思一下 */
@@ -1292,7 +1295,7 @@ class ElementFollower extends Follower{
             for(let i=0;i<100;i++){
                 if(this.echartsData.x[-1-i] == undefined)
                     break;
-
+                mark_point_count++
                 option.series.push({
                     type:'line',
                     name:yname,
@@ -1318,11 +1321,14 @@ class ElementFollower extends Follower{
             
         })
         // console.log(option)
+
+        let canMerge = this.echartsMarkPointCount <= mark_point_count
+        this.echartsMarkPointCount = mark_point_count
         
         if(this.echartsObject == undefined){
             this.echartsObject = window["echarts"].init(this.echartsElem)
         }
-        this.echartsObject.setOption(option)
+        this.echartsObject.setOption(option, !canMerge)
     }
 }
 
