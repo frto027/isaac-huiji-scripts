@@ -1682,9 +1682,9 @@ let front_zIndex = 300
 function updateFrontFollower(follower:Follower){
     if(follower.getZIndex() == front_zIndex)
         return
-    for(let i=0;i<followers.length;i++){
-        followers[i].setZIndex(front_zIndex)
-    }
+    // for(let i=0;i<followers.length;i++){
+    //     followers[i].setZIndex(front_zIndex)
+    // }
     follower.setZIndex(++front_zIndex)
 }
 
