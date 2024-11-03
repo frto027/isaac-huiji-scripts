@@ -1011,11 +1011,14 @@ class Follower{
     show(){}
     isHide():boolean{return true}
     setHideAllCallback(f:()=>void){}
+    removeHideAllBtn(){}
 
     echartsData:EchartsData|undefined = undefined
     updateEcharts(){}
 
+    isUsefulFollower(){return false}
     setZIndex(idx:number){}
+    getZIndex():number{return 0}
 }
 
 
@@ -1044,13 +1047,13 @@ class ElementFollower extends Follower{
         this.elem = elem
         this.root = document.createElement("div")
         this.root.innerHTML = `
-        <span class='follower-text'></span>
-        <span>
+        <span class='follower-text mathjax-follower-text'></span>
+        <span class='mathjax-follower-btns'>
         <button class='btn btn-link btn-sm follower-echart-show' style='padding:0'>F(x)</button>
         <button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-eye-slash"></i></button>
         <button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-times"></i></button>
         </span>
-        <div class='echarts-elem' style='width:400px;height:200px'></div>`
+        <div class='echarts-elem mathjax-follower-echart' style='width:400px;height:200px'></div>`
 
         this.txtElem = this.root.querySelector(".follower-text");
 
@@ -1074,17 +1077,20 @@ class ElementFollower extends Follower{
                 this.updateEcharts()    
                 updateFrontFollower(this)
             }
+            this.follow()
         });
 
         
         this.root.style.display = "none"
         // this.root.innerText = ""
-        this.root.style.textAlign = "right"
-        this.root.style.position = 'absolute'
-        this.root.style.padding = "2px 8px"
-        this.root.style.backgroundColor = 'rgb(253 196 144 / 87%)'
-        this.root.style.borderRadius = "4px"
-        this.root.style.border = "solid 1px black"
+        // this.root.style.textAlign = "right"
+        // this.root.style.position = 'absolute'
+        // this.root.style.padding = "2px 8px"
+        // this.root.style.backgroundColor = 'rgb(253 196 144 / 100%)'
+        // this.root.style.borderRadius = "4px"
+        // this.root.style.border = "solid 1px black"
+        // this.root.style.padding = "4px 8px"
+        this.root.classList.add("mathjax-follower-bg")
         this.follow()
         document.body.append(this.root)
 
@@ -1092,13 +1098,43 @@ class ElementFollower extends Follower{
             updateFrontFollower(this)
         })
     }
+    isUsefulFollower(): boolean {
+        return true
+    }
 
     setZIndex(idx: number): void {
         this.root.style.zIndex = idx + ""
     }
+    getZIndex(): number {
+        return +(this.root.style.zIndex)
+    }
+    removeHideAllBtn(){
+        let btn = this.root.querySelector(".follower-hide-all")
+        if(btn){
+            btn.remove()
+        }
+    }
+    follow_offset = undefined
     follow(){
-        this.root.style.left = (this.elem.getBoundingClientRect().left + window.scrollX + 10) + "px"
-        this.root.style.top = (this.elem.getBoundingClientRect().top + window.scrollY + 10) + "px"
+        let rect = this.elem.getBoundingClientRect()
+        let L = rect.left + window.scrollX
+        let T = rect.top + window.scrollY
+
+        let CX = L + rect.width/2
+        let CY = T + rect.height/2
+
+        let mrect = this.root.getBoundingClientRect()
+        
+        let X = CX - mrect.width/2
+        let Y = CY - mrect.height/2
+        if(X < L)
+            X = L
+        if(Y < T)
+            Y = T
+        this.root.style.left =X + "px"
+        this.root.style.top = Y + "px"
+        // this.root.style.left = (this.elem.getBoundingClientRect().left + window.scrollX + 10) + "px"
+        // this.root.style.top = (this.elem.getBoundingClientRect().top + window.scrollY + 10) + "px"
     }
     text(txt){
         this.txtElem.innerText = txt
@@ -1642,11 +1678,14 @@ let factory = new ExprFactory()
 let exprs:Array<Expr> = []
 let followers :Array<Follower> = []
 
+let front_zIndex = 300
 function updateFrontFollower(follower:Follower){
+    if(follower.getZIndex() == front_zIndex)
+        return
     for(let i=0;i<followers.length;i++){
-        followers[i].setZIndex(0)
+        followers[i].setZIndex(front_zIndex)
     }
-    follower.setZIndex(1)
+    follower.setZIndex(++front_zIndex)
 }
 
 function isAllFollowersHide(){
@@ -1930,6 +1969,19 @@ for(let i=0;i<followers.length;i++){
             followers[i].hide()
         }
     })
+}
+
+{
+    let usefulFollowerCount = 0
+    for(let i=0;i<followers.length;i++){
+        if(followers[i].isUsefulFollower())
+            usefulFollowerCount++
+    }
+    if(usefulFollowerCount == 1){
+        for(let i=0;i<followers.length;i++){
+            followers[i].removeHideAllBtn()
+        }
+    }
 }
 if(followers.length > 0){
     window.addEventListener("resize", function(){
