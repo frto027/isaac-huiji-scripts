@@ -106,6 +106,9 @@ class Expr{
     toAssignExpr():AssignExpr|undefined{
         return undefined
     }
+    toSelectExpr():SelectExpr|undefined{
+        return undefined
+    }
 }
 class ConstExpr extends Expr{
     val:number
@@ -460,6 +463,9 @@ class SelectExpr extends Expr{
         }
         r += "}"
         return r
+    }
+    toSelectExpr(): SelectExpr | undefined {
+        return this
     }
 }
 
@@ -1747,7 +1753,15 @@ for(let m=0;m<maths.length;m++){
                 if(assign){
                     assign.canBeCmp = false
                 }
-                e.visit(fix)
+                let select = e.toSelectExpr()
+                if(select){
+                    for(let i=0;i<select.items.length;i++){
+                        //don't fix the condition
+                        fix(select.items[i].value)
+                    }
+                }else{
+                    e.visit(fix)
+                }
             }
             fix(e)
         }
