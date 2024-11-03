@@ -1049,11 +1049,11 @@ class ElementFollower extends Follower{
         this.root.innerHTML = `
         <span class='follower-text mathjax-follower-text'></span>
         <span class='mathjax-follower-btns'>
-        <button class='btn btn-link btn-sm follower-echart-show' style='padding:0'>F(x)</button>
-        <button class='btn btn-link btn-sm follower-hide-all' style='padding:0'><i class="fa fa-eye-slash"></i></button>
-        <button class='btn btn-link btn-sm follower-hide' style='padding:0'><i class="fa fa-times"></i></button>
+        <button class='btn btn-link btn-sm follower-echart-show'>F(x)</button>
+        <button class='btn btn-link btn-sm follower-hide-all'><i class="fa fa-eye-slash"></i></button>
+        <button class='btn btn-link btn-sm follower-hide'><i class="fa fa-times"></i></button>
         </span>
-        <div class='echarts-elem mathjax-follower-echart' style='width:400px;height:200px'></div>`
+        <div class='echarts-elem mathjax-follower-echart'></div>`
 
         this.txtElem = this.root.querySelector(".follower-text");
 
