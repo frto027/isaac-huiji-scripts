@@ -102,6 +102,10 @@ class Expr{
     isVariableExpr(){
         return false
     }
+
+    toAssignExpr():AssignExpr|undefined{
+        return undefined
+    }
 }
 class ConstExpr extends Expr{
     val:number
@@ -172,6 +176,7 @@ class BinaryExpr extends Expr{
 
 class AssignExpr extends BinaryExpr{
     cmpResult : boolean|undefined = undefined
+    canBeCmp : boolean = true
     constructor(left:Expr,right:Expr){
         super(left,right, "=")
     }
@@ -183,7 +188,7 @@ class AssignExpr extends BinaryExpr{
         this.cmpResult = undefined
         let rresult = this.right.hasResult()
         let lresult = this.left.hasResult()
-        if(rresult && lresult){
+        if(this.canBeCmp && rresult && lresult){
             let r = this.right.result()
             let l = this.left.result()
             this.cmpResult = Math.abs(l-r) < 0.0000001
@@ -206,6 +211,10 @@ class AssignExpr extends BinaryExpr{
     equal_to(result: number): void {
         this.right.equal_to(result)
         this.left.equal_to(result)
+    }
+
+    toAssignExpr(): AssignExpr | undefined {
+        return this
     }
 }
 
@@ -1650,6 +1659,7 @@ function isAllFollowersHide(){
 class WikiMathExpressionProperty{
     show_result:boolean
     show_percent:boolean
+    ttl:number|undefined = undefined
 }
 let props:Array<WikiMathExpressionProperty> = []
 
@@ -1665,6 +1675,9 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
         if(elem.getAttribute("data-calc") == "1"){
             prop.show_result = (elem.getAttribute("data-showresult") || "1") == "1"
             prop.show_percent = (elem.getAttribute("data-percent") || "0") == "1"
+            prop.ttl = +(elem.getAttribute("data-ttl") || "1")
+            if(!isFinite(prop.ttl))
+                prop.ttl = 1
             return true
         }
     }
@@ -1687,6 +1700,19 @@ for(let m=0;m<maths.length;m++){
         followers.push(follower)
         props.push(prop)
         follower.prop = prop
+
+        //fix expr
+        if(prop.ttl > 1){
+            function fix(e:Expr){
+                let assign = e.toAssignExpr()
+                if(assign){
+                    assign.canBeCmp = false
+                }
+                e.visit(fix)
+            }
+            fix(e)
+        }
+
         console.log("已解析公式：", e.toString(), e)
     }catch(e){
         console.log("以下公式没有被解析，因为",e,maths[m])
@@ -1711,12 +1737,19 @@ function calculate(){
     for(let i=0;i<varproviders.length;i++){
         varproviders[i].updateContext()
     }
-    let expr_is_calculated = []
+    let expr_ttl = []
+    for(let i=0;i<exprs.length;i++){
+        if(props[i].ttl == undefined){
+            expr_ttl[i] = 1
+        }else{
+            expr_ttl[i] = props[i].ttl
+        }
+    }
     for(let i=0;i<100;i++){
         let someexpr_changed = false
         for(let m=0;m<exprs.length;m++){
             ExprContext.ctx.changed = false
-            if(expr_is_calculated[m])
+            if(expr_ttl[m] <= 0)
                 continue
             if(exprs[m].hasResult()){
                 let updated_vars = ""
@@ -1765,7 +1798,7 @@ function calculate(){
 
                 if(ExprContext.ctx.changed){
                     someexpr_changed = true
-                    expr_is_calculated[m] = true
+                    expr_ttl[m]--
                 }
             }
         }
@@ -1799,11 +1832,18 @@ function calculateEcharts(){
         }
         ExprContext.ctx.set(VarProvider.lastTouchedVarProvider.varname, v)
 
-        let expr_is_calculated = []
+        let expr_ttl = []
+        for(let i=0;i<props.length;i++){
+            if(props[i].ttl != undefined){
+                expr_ttl[i] = props[i].ttl
+            }else{
+                expr_ttl[i] = 1
+            }
+        }
         for(let i=0;i<100;i++){
             let someexpr_changed = false
             for(let m=0;m<exprs.length;m++){
-                if(expr_is_calculated[m])
+                if(expr_ttl[m]<=0)
                     continue
                 ExprContext.ctx.changed = false
                 if(exprs[m].hasResult()){
@@ -1844,7 +1884,7 @@ function calculateEcharts(){
 
                     if(ExprContext.ctx.changed){
                         someexpr_changed = true
-                        expr_is_calculated[m] = true
+                        expr_ttl[m]--
                     }
                 }
             }
