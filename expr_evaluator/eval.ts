@@ -1220,7 +1220,8 @@ class ElementFollower extends Follower{
 
             let yname = cleanup_mathjax(k).replace(new RegExp("[<>]"),"")
 
-            if(this.echartsData.y.size == 1){
+            if(this.echartsData.y.size == 1 || 
+                (this.echartsData.y.size == 2 && this.echartsData.y.has("ans"))){
                 option.yAxis['name'] = yname
             }
     
