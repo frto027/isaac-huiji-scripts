@@ -1156,9 +1156,9 @@ class ElementFollower extends Follower{
         function cleanup_mathjax(n:string):string{
             let m = new RegExp("^(.*)_\\{?(.*?)\\}?$").exec(n)
             if(m){
-                return m[1] + m[2]
+                return m[1].replace("^","") + m[2]
             }else{
-                return n
+                return n.replace("^","")
             }
         }
         function escapeHtml(x:string):string{
@@ -1167,9 +1167,9 @@ class ElementFollower extends Follower{
         function name_to_html(n:string):string{
             let m = new RegExp("^(.*)_\\{?(.*?)\\}?$").exec(n)
             if(m){
-                return escapeHtml(m[1]) + "<sub>" + escapeHtml(m[2]) + "</sub>"
+                return escapeHtml(m[1].replace("^","")) + "<sub>" + escapeHtml(m[2]) + "</sub>"
             }else{
-                return escapeHtml(n)
+                return escapeHtml(n.replace("^",""))
             }
         }
 
