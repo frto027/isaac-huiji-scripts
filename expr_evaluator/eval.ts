@@ -1181,15 +1181,16 @@ class ElementFollower extends Follower{
         if(!this.is_show_echart)
             return
         this.echartsElem.style.display = "block"
-        
+        let re = new RegExp("^[0-9\\.]+$")
         let fixed = (x:number)=>{
             let r:string = x.toFixed(4)
             let tail = r.length
-
-            while(tail > 0 && r[tail-1] == '0')
-                tail--
-            if(tail > 0 && r[tail-1] == '.')
-                tail--
+            if(re.exec(r)){
+                while(tail > 0 && r[tail-1] == '0')
+                    tail--
+                if(tail > 0 && r[tail-1] == '.')
+                    tail--    
+            }
             return r.substring(0,tail)
         }
         let fixedY = (x:number)=>{
@@ -1200,11 +1201,12 @@ class ElementFollower extends Follower{
                 r = (x * 100).toFixed(2)
             }
             let tail = r.length
-
-            while(tail > 0 && r[tail-1] == '0')
-                tail--
-            if(tail > 0 && r[tail-1] == '.')
-                tail--
+            if(re.exec(r)){
+                while(tail > 0 && r[tail-1] == '0')
+                    tail--
+                if(tail > 0 && r[tail-1] == '.')
+                    tail--
+            }
             return r.substring(0,tail) + (show_percent ? "%" : "")
         }
         function cleanup_mathjax(n:string):string{
@@ -1631,9 +1633,7 @@ class VarProvider{
 
     hintText(v:number){
     	if(this.intOnly) v = Math.round(v / this.intScale) * this.intScale;
-        var t = v.toString();
-        if(t.length > 6)
-            t = t.substring(0,6);
+        var t = v.toFixed(4)
         return this.varname + '=' +  t;
     };
 
