@@ -1039,7 +1039,7 @@ class Follower{
 
 
 class ElementFollower extends Follower{
-    elem:Element
+    elem:HTMLElement
     root:HTMLElement
     txtElem:HTMLElement
     echartsElem:HTMLElement
@@ -1097,10 +1097,9 @@ class ElementFollower extends Follower{
             }
             this.follow()
         });
-
         
         this.root.style.display = "none"
-        // this.root.innerText = ""
+
         // this.root.style.textAlign = "right"
         // this.root.style.position = 'absolute'
         // this.root.style.padding = "2px 8px"
@@ -1108,9 +1107,28 @@ class ElementFollower extends Follower{
         // this.root.style.borderRadius = "4px"
         // this.root.style.border = "solid 1px black"
         // this.root.style.padding = "4px 8px"
+
+
         this.root.classList.add("mathjax-follower-bg")
+        this.root.style.zIndex = "5"
         this.follow()
-        document.body.append(this.root)
+        // document.body.append(this.root)
+
+        if(this.elem){
+            let floatContainer = document.createElement("div")
+            floatContainer.style.display = 'inline-block'
+            floatContainer.style.position = 'relative'
+            floatContainer.style.width = "0"
+            floatContainer.style.height = "0"
+            floatContainer.style.verticalAlign = 'top'
+            
+            floatContainer.appendChild(this.root)
+            if(this.elem.children.length > 0){
+                this.elem.insertBefore(floatContainer, this.elem.firstChild)
+            }else{
+                this.elem.appendChild(floatContainer)
+            }
+        }
 
         this.root.addEventListener("click",()=>{
             updateFrontFollower(this)
@@ -1134,6 +1152,7 @@ class ElementFollower extends Follower{
     }
     follow_offset = undefined
     follow(){
+        return
         let rect = this.elem.getBoundingClientRect()
         let L = rect.left + window.scrollX
         let T = rect.top + window.scrollY
