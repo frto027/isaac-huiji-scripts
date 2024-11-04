@@ -1371,6 +1371,8 @@ class VarProvider{
     isLocked = false
     lockBtn:HTMLElement|undefined
 
+    helpBtn:HTMLElement
+
     readonly = false
     constructor(elem:Element, callback){
         this.callback = callback
@@ -1391,13 +1393,16 @@ class VarProvider{
                 <div class="mathvar-percent" style="height: 100%; background-color: rgba(132, 130, 137, 0.16); position: absolute; border-radius: 8px; user-select: none; width: 40.5%;"></div>
                 <div class="mathvar-click" style="position: absolute; inset: 0px;"></div>
             </div>
-            <button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:18px"><i class="fa fa-unlock" style='color:gray'></i></button>
+            <sub><button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:12px"><i class="fa fa-unlock" style='color:gray'></i></button></sub>
+            <sup><a class='mathvar-help-btn btn btn-sm btn-link' style="display:none;padding:0;width:8px" href='/wiki/帮助:公式计算器'><i class="fa fa-question-circle-o" style='color:gray'></i></a></sup>
         `
         
         let container = elem.querySelector(".mathvar-input-container")!
         this.textElem = elem.querySelector(".mathvar-text")!
         this.percentElem = elem.querySelector(".mathvar-percent")!
         this.lockBtn = elem.querySelector(".mathvar-lock-btn")!
+        this.helpBtn = elem.querySelector(".mathvar-help-btn")!
+        
         let clickOverlay = elem.querySelector(".mathvar-click")!
         this.clickElement = clickOverlay as HTMLElement
         
@@ -1581,6 +1586,10 @@ class VarProvider{
         // })
     }
 
+    showHelp(){
+        this.helpBtn.style.display = 'inline-block'
+    }
+
     lock(){
         if(this.isLocked){
             return
@@ -1693,6 +1702,8 @@ for(let i=0;i<varproviders_elems.length;i++){
         console.error(e)
     }
 }
+if(varproviders.length > 0)
+    varproviders[0].showHelp()
 
 let maths = document.getElementsByTagName("math")
 let factory = new ExprFactory()
