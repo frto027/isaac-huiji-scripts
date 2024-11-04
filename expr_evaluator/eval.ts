@@ -1393,11 +1393,11 @@ class VarProvider{
                 <div class="mathvar-percent" style="height: 100%; background-color: rgba(132, 130, 137, 0.16); position: absolute; border-radius: 8px; user-select: none; width: 40.5%;"></div>
                 <div class="mathvar-click" style="position: absolute; inset: 0px;"></div>
             </div>
-            <sub><button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:12px"><i class="fa fa-unlock" style='color:gray'></i></button></sub>
+            <button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:12px"><i class="fa fa-unlock" style='color:gray'></i></button>
             <sup><a class='mathvar-help-btn btn btn-sm btn-link' style="display:none;padding:0;width:8px" href='/wiki/帮助:公式计算器'><i class="fa fa-question-circle-o" style='color:gray'></i></a></sup>
         `
         
-        let container = elem.querySelector(".mathvar-input-container")!
+        let container:HTMLElement = elem.querySelector(".mathvar-input-container")!
         this.textElem = elem.querySelector(".mathvar-text")!
         this.percentElem = elem.querySelector(".mathvar-percent")!
         this.lockBtn = elem.querySelector(".mathvar-lock-btn")!
@@ -1417,6 +1417,9 @@ class VarProvider{
         this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
 
+        if(this.rndType == 'rnd'){
+            container.style.width = '140px'
+        }
         {
             let highlights_str = (elem.getAttribute("data-highlight") || "").split(",")
             for(let i=0;i<highlights_str.length;i++){
@@ -1658,10 +1661,10 @@ class VarProvider{
         this.textElem.innerText = "\\(" + this.hintText(i) + "\\)"
         if(this.rndType != "none"){
             if (isRandomValue) {
-                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#e3e3e3"></i>&nbsp;&nbsp;&nbsp;' + this.textElem.innerHTML;
+                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#e3e3e3"></i>&nbsp;&nbsp;' + this.textElem.innerHTML;
             }
             else {
-                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#757575"></i>&nbsp;&nbsp;&nbsp;' + this.textElem.innerHTML;
+                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#757575"></i>&nbsp;&nbsp;' + this.textElem.innerHTML;
             }
         }
         MathJaxHelper.updateMathJax([this.textElem])
