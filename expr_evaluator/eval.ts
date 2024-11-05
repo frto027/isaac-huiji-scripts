@@ -109,6 +109,9 @@ class Expr{
     toSelectExpr():SelectExpr|undefined{
         return undefined
     }
+    toLogExpr():LogExpr|undefined{
+        return undefined
+    }
 }
 class ConstExpr extends Expr{
     val:number
@@ -484,7 +487,17 @@ class LgExpr extends FuncExpr{
         return Math.log10(this.exprs[0]?.result() ?? NaN)
     }
 }
+class LogExpr extends FuncExpr{
+    result(): number {
+        let base = this.exprs[0]?.result() ?? NaN
+        let x = this.exprs[1]?.result() ?? NaN
+        return Math.log(x)/Math.log(base) /* 换底公式 */
+    }
 
+    toLogExpr():LogExpr|undefined{
+        return this
+    }
+}
 class MaxExpr extends FuncExpr{
     result(): number {
         let R = -Infinity
@@ -708,6 +721,11 @@ class ExprFactory{
                 }
                 if(functionKeywords[varName])
                     return new Variable(varName, undefined)
+                if(varName == "log"){
+                    let r = new LogExpr("log")
+                    r.addArgument(new ConstExpr(10))
+                    return r
+                }
                 //关键词匹配失败，当作单个字母来做
                 idx = backup_idx
                 return new Variable(tag.textContent||"?", undefined)
@@ -733,6 +751,13 @@ class ExprFactory{
                 return new PowExpr(v,p)
             }
             if(tag.tagName == "msub"){
+                if(tag.children.length == 2 && tag.children[0].tagName == "mi" && tag.children[0].textContent == "log"){
+                    //log_x(y)
+                    let base = readSingleValueExpr(tag.children[1])
+                    let ret = new LogExpr("log")
+                    ret.addArgument(base)
+                    return ret /* Fix ret in the future */
+                }
                 assert(tag.children[0].tagName == "mi" || tag.children[0].tagName == "mn", "not supported")
                 if(tag.children[1].tagName == "mrow"){
                     //手动处理下标为_{xxx}的情况
@@ -847,10 +872,13 @@ class ExprFactory{
             let ret = readSingleValueExpr(next())
             while(hasMore() && mo(""))
                 next()//empty next inside sin function
-            if(ret.isVariableExpr() && functionKeywords[ret.toString()] && hasMore() &&mo("(")){
+
+            function readFunctionArguments(funcret:FuncExpr){
+                assert(mo("("), "'(' expected")
                 next()
-                let func:typeof FuncExpr = functionKeywords[ret.toString()]
-                let funcret = new func(ret.toString())
+                if(mo(")"))
+                    return
+                funcret.addArgument(readValue(false))
                 while(!mo(")")){
                     if(funcret.exprs.length > 0){
                         assert(mo(","), "invalid argument seperator")
@@ -859,8 +887,27 @@ class ExprFactory{
                     funcret.addArgument(readValue(false))
                 }
                 next()
+            }
+
+            // handle function
+            if(ret.isVariableExpr() && functionKeywords[ret.toString()] && hasMore() &&mo("(")){
+                let func:typeof FuncExpr = functionKeywords[ret.toString()]
+                let funcret = new func(ret.toString())
+                readFunctionArguments(funcret)
                 return funcret
             }
+            //handle log function argument
+            if(ret.toLogExpr()){
+                if(hasMore() && mo("(")){
+                    readFunctionArguments(ret.toLogExpr())
+                    return ret    
+                }
+                if(hasMore()){
+                    ret.toLogExpr().addArgument(readValue(false, 500 /* ADD_SUB */))
+                    return ret
+                }
+            }
+
             return ret
         }
         function readValue(readAllCheck = true, priority = -1):Expr{
@@ -1152,26 +1199,17 @@ class ElementFollower extends Follower{
     }
     follow_offset = undefined
     follow(){
-        return
         let rect = this.elem.getBoundingClientRect()
-        let L = rect.left + window.scrollX
-        let T = rect.top + window.scrollY
-
-        let CX = L + rect.width/2
-        let CY = T + rect.height/2
-
         let mrect = this.root.getBoundingClientRect()
         
-        let X = CX - mrect.width/2
-        let Y = CY - mrect.height/2
-        if(X < L)
-            X = L
-        if(Y < T)
-            Y = T
+        let X = (rect.width - mrect.width)/2
+        let Y = (rect.height - mrect.height)/2
+        if(X < 0)
+            X = 0
+        if(Y < 0)
+            Y = 0
         this.root.style.left =X + "px"
         this.root.style.top = Y + "px"
-        // this.root.style.left = (this.elem.getBoundingClientRect().left + window.scrollX + 10) + "px"
-        // this.root.style.top = (this.elem.getBoundingClientRect().top + window.scrollY + 10) + "px"
     }
     text(txt){
         this.txtElem.innerText = txt
