@@ -1243,9 +1243,9 @@ class ElementFollower extends Follower{
             let r:string = x.toFixed(4)
             let tail = r.length
             if(re.exec(r)){
-                while(tail > 0 && r[tail-1] == '0')
+                while(tail > 1 && r[tail-1] == '0')
                     tail--
-                if(tail > 0 && r[tail-1] == '.')
+                if(tail > 1 && r[tail-1] == '.')
                     tail--    
             }
             return r.substring(0,tail)
@@ -1259,9 +1259,9 @@ class ElementFollower extends Follower{
             }
             let tail = r.length
             if(re.exec(r)){
-                while(tail > 0 && r[tail-1] == '0')
+                while(tail > 1 && r[tail-1] == '0')
                     tail--
-                if(tail > 0 && r[tail-1] == '.')
+                if(tail > 1 && r[tail-1] == '.')
                     tail--
             }
             return r.substring(0,tail) + (show_percent ? "%" : "")
@@ -1702,8 +1702,16 @@ class VarProvider{
 
     hintText(v:number){
     	if(this.intOnly) v = Math.round(v / this.intScale) * this.intScale;
-        var t = v.toFixed(4)
-        return this.varname + '=' +  t;
+        let r = v.toFixed(4)
+        if(new RegExp("^[0-9\\.]+$").exec(r)){
+            let tail = r.length
+            while(tail > 1 && r[tail-1] == '0')
+                tail--
+            if(tail > 1 && r[tail-1] == '.')
+                tail--
+            r = r.substring(0, tail)
+        }
+        return this.varname + '=' +  r;
     };
 
 
