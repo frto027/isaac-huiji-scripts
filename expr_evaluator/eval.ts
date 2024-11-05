@@ -1078,6 +1078,7 @@ class Follower{
 
     echartsData:EchartsData|undefined = undefined
     updateEcharts(){}
+    needCalculateEchart(){return false}
 
     isUsefulFollower(){return false}
     setZIndex(idx:number){}
@@ -1234,6 +1235,9 @@ class ElementFollower extends Follower{
         this.hideAllCallback = f
     }
 
+    needCalculateEchart(): boolean {
+        return this.is_show_echart
+    }
     updateEcharts(): void {
         if(!this.is_show_echart)
             return
@@ -1964,6 +1968,19 @@ function calculate(){
 function calculateEcharts(){
     if(VarProvider.lastTouchedVarProvider == undefined)
         return;
+
+    {
+        let need_calculate_echart = false
+        for(let i=0;i<followers.length;i++){
+            if(followers[i].needCalculateEchart()){
+                need_calculate_echart = true
+                break
+            }
+        }
+        if(!need_calculate_echart)
+            return;
+    }
+
     for(let i=0;i<followers.length;i++){
         let e = followers[i].echartsData
         if(e)
