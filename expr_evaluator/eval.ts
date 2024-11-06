@@ -1272,33 +1272,34 @@ class ElementFollower extends Follower{
         if(!this.is_show_echart)
             return
         this.echartsElem.style.display = "block"
-        let re = new RegExp("^[0-9\\.]+$")
         let fixed = (x:number)=>{
-            let r:string = x.toFixed(4)
-            let tail = r.length
-            if(re.exec(r)){
-                while(tail > 1 && r[tail-1] == '0')
-                    tail--
-                if(tail > 1 && r[tail-1] == '.')
-                    tail--    
-            }
-            return r.substring(0,tail)
+            let r = cut_value(x, false, true)
+            return r
+            // let r:string = x.toFixed(4)
+            // let tail = r.length
+            // if(re.exec(r)){
+            //     while(tail > 1 && r[tail-1] == '0')
+            //         tail--
+            //     if(tail > 1 && r[tail-1] == '.')
+            //         tail--    
+            // }
+            // return r.substring(0,tail)
         }
         let fixedY = (x:number)=>{
             let show_percent = this.prop && this.prop.show_percent
-
-            let r:string = x.toFixed(4)
-            if(show_percent){
-                r = (x * 100).toFixed(2)
-            }
-            let tail = r.length
-            if(re.exec(r)){
-                while(tail > 1 && r[tail-1] == '0')
-                    tail--
-                if(tail > 1 && r[tail-1] == '.')
-                    tail--
-            }
-            return r.substring(0,tail) + (show_percent ? "%" : "")
+            return cut_value(x, show_percent, true, false)
+            // let r:string = x.toFixed(4)
+            // if(show_percent){
+            //     r = (x * 100).toFixed(2)
+            // }
+            // let tail = r.length
+            // if(re.exec(r)){
+            //     while(tail > 1 && r[tail-1] == '0')
+            //         tail--
+            //     if(tail > 1 && r[tail-1] == '.')
+            //         tail--
+            // }
+            // return r.substring(0,tail) + (show_percent ? "%" : "")
         }
         function cleanup_mathjax(n:string):string{
             let m = new RegExp("^(.*)_\\{?(.*?)\\}?$").exec(n)
@@ -1321,6 +1322,7 @@ class ElementFollower extends Follower{
         }
 
         let mark_point_count = 0
+        /* echarts选项样式 */
         let option = {
             xAxis:{
                 name:cleanup_mathjax(this.echartsData.x_tag).replace(new RegExp("[<>]"),""), /* 无需过滤，意思一下 */
@@ -1328,7 +1330,10 @@ class ElementFollower extends Follower{
                     lineStyle:{
                       color:'black'
                     }
-                  }
+                },
+                axisLine:{
+                    onZero: false
+                }
             },
             yAxis:{
                 splitLine:{
@@ -1340,18 +1345,29 @@ class ElementFollower extends Follower{
                     formatter:(v)=>{
                         return fixedY(v)
                     }
+                },
+                axisLine:{
+                    onZero: false
                 }
+
             },
             title:{show:false},
             legend:{show:false},
             grid: {
-                left:  40,
-                right: 70,
+                left:  50,
+                right: 60,
                 top: 40,
                 bottom: 30
               },
             tooltip:{
                 trigger:'axis',
+                axisPointer: {
+                    type: 'line',
+                    lineStyle:{
+                        color:"black"
+                    }
+                },
+          
                 formatter:(p:any)=>{
                     let ret = ""
                     for(let i=0;i<p.length;i++){
@@ -1377,9 +1393,11 @@ class ElementFollower extends Follower{
 
             let yname = cleanup_mathjax(k).replace(new RegExp("[<>]"),"")
 
+            let only_has_one_yaxis = false
             if(this.echartsData.y.size == 1 || 
                 (this.echartsData.y.size == 2 && this.echartsData.y.has("ans"))){
                 option.yAxis['name'] = yname
+                only_has_one_yaxis = true
             }
     
             let values = []
@@ -1407,9 +1425,15 @@ class ElementFollower extends Follower{
                         "show": true, 
                         textBorderColor: 'white',
                         textBorderWidth:2,
-                        formatter: (params) => {
-                            return "(" + fixed(params.data[0]) + ", " + fixedY(params.data[1]) + ")"
-                       }
+                        formatter: (only_has_one_yaxis ?
+                            (params) => {
+                                return "(" + fixed(params.data[0]) + ", " + fixedY(params.data[1]) + ")"
+                            }:
+                            (params) => {
+                                return cleanup_mathjax(params.seriesName).replace(new RegExp("[{}]"), "")
+                                + " (" + fixed(params.data[0]) + ", " + fixedY(params.data[1]) + ")"
+                            }
+                        )
                    },
                    data:[[this.echartsData.x[-1-i], v.value[-1-i]]],
                     symbol: 'circle',
@@ -1492,22 +1516,12 @@ class VarProvider{
         this.callback = callback
 
         elem.innerHTML = `
-            <div class='mathvar-input-container' style="
-                display: inline-block;
-                width: 120px;
-                height: 30px;
-                position: relative;
-                background-color: rgb(53, 53, 53);
-                border-radius: 8px;
-                margin: 0px 2px;
-                user-select: none;
-                vertical-align:middle;
-            ">
-                <div class="mathvar-text" style="position: absolute; bottom: 2px; left: 6px; user-select: none;">text</div>
-                <div class="mathvar-percent" style="height: 100%; background-color: rgba(132, 130, 137, 0.16); position: absolute; border-radius: 8px; user-select: none; width: 40.5%;"></div>
-                <div class="mathvar-click" style="position: absolute; inset: 0px;"></div>
+            <div class='mathvar-input-container'>
+                <div class="mathvar-text">text</div>
+                <div class="mathvar-percent"></div>
+                <div class="mathvar-click"></div>
             </div>
-            <button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:12px"><i class="fa fa-unlock" style='color:gray'></i></button>
+            <button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:12px"><i class="fa fa-unlock"></i></button>
             <sup><a class='mathvar-help-btn btn btn-sm btn-link' style="display:none;padding:0;width:8px" href='/wiki/帮助:公式计算器'><i class="fa fa-question-circle-o" style='color:gray'></i></a></sup>
         `
         
@@ -1713,7 +1727,7 @@ class VarProvider{
         }
         this.isLocked = true
         if(this.lockBtn)
-            this.lockBtn.innerHTML = '<i class="fa fa-lock" style="color:white"></i>'
+            this.lockBtn.innerHTML = '<i class="fa fa-lock"></i>'
     }
     unlock(){
         if(!this.isLocked){
@@ -1721,7 +1735,7 @@ class VarProvider{
         }
         this.isLocked = false
         if(this.lockBtn)
-            this.lockBtn.innerHTML = '<i class="fa fa-unlock" style="color:gray"></i>'
+            this.lockBtn.innerHTML = '<i class="fa fa-unlock"></i>'
     }
 
     hideLockBtn(){
@@ -1760,15 +1774,7 @@ class VarProvider{
 
     hintText(v:number){
     	if(this.intOnly) v = Math.round(v / this.intScale) * this.intScale;
-        let r = v.toFixed(4)
-        if(new RegExp("^[0-9\\.]+$").exec(r)){
-            let tail = r.length
-            while(tail > 1 && r[tail-1] == '0')
-                tail--
-            if(tail > 1 && r[tail-1] == '.')
-                tail--
-            r = r.substring(0, tail)
-        }
+        let r = cut_value(v, false, true, true)
         return this.varname + '=' +  r;
     };
 
@@ -1958,17 +1964,55 @@ for(let m=0;m<maths.length;m++){
     }
 }
 
-function cut_value(value:number, prop:WikiMathExpressionProperty){
-    let cut_digit_to = 4
-    if(prop.show_percent)
+let cut_value_re = new RegExp("^-?[0-9\\.]+$")
+let replace_e = new RegExp("(\\.[0-9]*?)0+e")
+function cut_value(value:number, show_percent:boolean, cut_tail_zero /* 全部按照cut处理 */= false, in_mathjax /* 在mathjax上下文中，百分号需要转义 */ = false):string{
+    /* 这个函数用于将value转换为string */
+    let tail_txt = ""
+    if(show_percent){
+        if(in_mathjax)
+            tail_txt = "\\%"
+        else
+            tail_txt = "%"
         value = value * 100
-        cut_digit_to = 2
-    
-    let sval = value.toFixed(cut_digit_to)
+    }
 
-    if(prop.show_percent)
-        sval += "\\%"
-    return sval
+    if(Math.abs(value - (value | 0)) < 0.00000001){
+        //确认是整数，而且小于2的32次方
+        if(Math.abs(value) < 100000)
+            return value.toFixed(0)
+        return value.toExponential(2).replace("e+","e").replace(replace_e,"$1e").replace(".e","e") + tail_txt
+    }
+
+    if(Math.abs(value) >= 100000){
+        // 100000+ 输出 1.23e4这样的数字
+        return value.toExponential(2).replace("e+","e").replace(replace_e,"$1e").replace(".e","e") + tail_txt
+    }
+
+    if(Math.abs(value) >= 1){
+        // 1 ~ 100000 保留两位小数
+        let ret = value.toFixed(2)
+        return ret + tail_txt
+        // let tail = ret.length
+        // while(ret[tail-1] == '0')
+        //     tail--
+        // if(ret[tail-1]=='.')
+        //     tail--
+        // return ret.substring(0, tail) + tail_txt
+    }
+    if(Math.abs(value) >= 0.0001){
+        // 0.0001 ~ 1 保留4位小数
+        let ret = value.toFixed(4)
+        return ret + tail_txt
+        // let tail = ret.length
+        // while(ret[tail-1] == '0')
+        //     tail--
+        // if(ret[tail-1]=='.')
+        //     tail--
+        // return ret.substring(0, tail) + tail_txt
+    }
+    // 剩下的...太小了，随便吧
+    return value.toExponential(4).replace("e+","e").replace(replace_e,"$1e").replace(".e","e") + tail_txt
 }
 function calculate(){
     let need_display_followers = isAllFollowersHide()
@@ -1996,7 +2040,7 @@ function calculate(){
                 ExprContext.ctx.changedCallback = (name,value,changed)=>{
 
                     if(updated_vars.length > 0) updated_vars += "\n"
-                    updated_vars += "\\(" + name + "=" + cut_value(value, props[m]) + "\\)"
+                    updated_vars += "\\(" + name + "=" + cut_value(value, props[m].show_percent, true, true) + "\\)"
                 }
 
                 let compare_result : boolean | undefined = undefined
@@ -2020,7 +2064,7 @@ function calculate(){
                 }
                 // show ans
                 if(updated_vars.length == 0){
-                    updated_vars = "\\(ans=" + cut_value(result, props[m]) + "\\)"
+                    updated_vars = "\\(ans=" + cut_value(result, props[m].show_percent, true, true) + "\\)"
                 }
                 // if(updated_vars.length > 0) updated_vars += "\n"
                 // updated_vars += "\\(ans=" + result + "\\)"
