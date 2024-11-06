@@ -1405,6 +1405,28 @@ class ElementFollower extends Follower{
     }
 }
 
+class VarProviderCluster{
+    static instance = new VarProviderCluster()
+
+    maps = new Map<string, Array<VarProvider>>()
+    register(provider:VarProvider){
+        if(!this.maps.has(provider.varname))
+            this.maps.set(provider.varname, [])
+        this.maps.get(provider.varname).push(provider)
+    }
+
+    setValue(varname:string, value:number, isRandomValue = false){
+        let changed = false
+        if(!this.maps.has(varname))
+            throw new Error("unknown varprovider for " + varname)
+        for(let k of this.maps.get(varname)){
+            k.setValue(value, isRandomValue)
+            changed = true
+        }
+        return changed
+    }
+}
+
 class VarProvider{
     static lastTouchedVarProvider:VarProvider|undefined = undefined
 
@@ -1572,7 +1594,7 @@ class VarProvider{
                     }else if(value_init != percent){
                         need_trigger_mouse_click = false
                     }
-                    me.setValue(me.p2v(percent));
+                    me.setClusterValueOrValue(me.p2v(percent));
                     me.callback()
                     if(ev.cancelable)
                         ev.preventDefault();
@@ -1613,7 +1635,7 @@ class VarProvider{
             }
             // if(v < low) v = low;
             // if(v > high) v = high;
-            me.setValue(vNum);
+            me.setClusterValueOrValue(vNum);
             me.callback()
             if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
                 VarProvider.lastTouchedVarProvider = me
@@ -1692,9 +1714,9 @@ class VarProvider{
     rnd(){
         if(this.rndType == "rnd"){
             if(this.intOnly){
-                this.setValue(0|(Math.random() * (this.high - this.low + 1) + this.low), true)
+                this.setClusterValueOrValue(0|(Math.random() * (this.high - this.low + 1) + this.low), true)
             }else{
-                this.setValue(Math.random() * (this.high - this.low) + this.low, true)
+                this.setClusterValueOrValue(Math.random() * (this.high - this.low) + this.low, true)
             }
             this.callback()
         }
@@ -1720,6 +1742,10 @@ class VarProvider{
         return this.varname + '=' +  r;
     };
 
+    setClusterValueOrValue(i:number, isRandomValue:boolean = false){
+        if(!VarProviderCluster.instance.setValue(this.varname, i,isRandomValue))
+            this.setValue(i, isRandomValue)
+    }
 
     setValue(i:number, isRandomValue:boolean = false){
         if(i > this.high) i = this.high
@@ -1778,6 +1804,10 @@ for(let i=0;i<varproviders_elems.length;i++){
 }
 if(varproviders.length > 0)
     varproviders[0].showHelp()
+
+for(let i=0;i<varproviders.length;i++){
+    VarProviderCluster.instance.register(varproviders[i])
+}
 
 let maths = document.getElementsByTagName("math")
 let factory = new ExprFactory()
