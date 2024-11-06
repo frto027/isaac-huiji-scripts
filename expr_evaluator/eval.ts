@@ -1410,6 +1410,7 @@ class VarProvider{
 
     static mathJaxUpdateTimeout:number|undefined
     static globalDrawStartCallback:()=>void = undefined
+
     input:HTMLInputElement
     low:number
     high:number
@@ -1417,7 +1418,7 @@ class VarProvider{
     intScale:number = 1
     varname:string
     init:number
-    callback:()=>void
+    callback:()=>void // on value changed callback
     value:number = NaN
     rndType:string = "none"
 
@@ -1695,6 +1696,7 @@ class VarProvider{
             }else{
                 this.setValue(Math.random() * (this.high - this.low) + this.low, true)
             }
+            this.callback()
         }
     }
     p2v(p:number){
