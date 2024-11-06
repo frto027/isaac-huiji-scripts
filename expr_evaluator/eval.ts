@@ -2,6 +2,8 @@ function displayDebugMessage(){
     return window["mathJaxCalcDebug"] == "1"
 } 
 
+const jsOnly = false
+
 {
     let edom = document.createElement("script")
     edom.src = 'https://spa.huijistatic.com/www/echarts/5.4.0/echarts.min.js'
@@ -1077,12 +1079,17 @@ class Follower{
     removeHideAllBtn(){}
 
     echartsData:EchartsData|undefined = undefined
+    needEchartsData(){return false}
     updateEcharts(){}
     needCalculateEchart(){return false}
 
     isUsefulFollower(){return false}
     setZIndex(idx:number){}
     getZIndex():number{return 0}
+
+    toElementFollower():ElementFollower|undefined{
+        return undefined
+    }
 }
 
 
@@ -1098,9 +1105,16 @@ class ElementFollower extends Follower{
     is_show_echart = false
     
     echartsData = new EchartsData()
+    echartsMergeTo:ElementFollower|undefined = undefined
 
     hideAllCallback:()=>void = undefined
 
+    toElementFollower(): ElementFollower | undefined {
+        return this
+    }
+    needEchartsData(): boolean {
+        return this.is_show_echart
+    }
     constructor(elem){
         super()
         while(elem.tagName == "math" || elem.tagName.indexOf("mjx-")>=0  || elem.tagName.indexOf("MJX-")>=0){
@@ -1135,26 +1149,42 @@ class ElementFollower extends Follower{
         });
 
         (this.root.querySelector(".follower-echart-show") as HTMLElement).addEventListener("click",()=>{
+            if(this.echartsMergeTo != undefined){
+                if(this.echartsMergeTo.isHide())
+                    this.echartsMergeTo.show()
+                if(!this.echartsMergeTo.is_show_echart){
+                    this.echartsMergeTo.is_show_echart = true
+                    calculateEcharts()// this.echartsMergeTo.updateEcharts()
+                    updateFrontFollower(this.echartsMergeTo)
+                }else{
+                    //TODO: 已在别处显示，提示一下
+                }
+                return
+            }
             if(this.is_show_echart){
                 this.is_show_echart = false
                 this.echartsElem.style.display = "none"
             }else{
                 this.is_show_echart = true
-                this.updateEcharts()    
+                calculateEcharts()//this.updateEcharts()    
                 updateFrontFollower(this)
             }
             this.follow()
         });
         
         this.root.style.display = "none"
+        if(jsOnly){
+            this.root.style.textAlign = "right"
+            this.root.style.position = 'absolute'
+            this.root.style.padding = "2px 8px"
+            this.root.style.backgroundColor = 'rgb(253 196 144 / 100%)'
+            this.root.style.borderRadius = "4px"
+            this.root.style.border = "solid 1px black"
+            this.root.style.padding = "4px 8px"
 
-        // this.root.style.textAlign = "right"
-        // this.root.style.position = 'absolute'
-        // this.root.style.padding = "2px 8px"
-        // this.root.style.backgroundColor = 'rgb(253 196 144 / 100%)'
-        // this.root.style.borderRadius = "4px"
-        // this.root.style.border = "solid 1px black"
-        // this.root.style.padding = "4px 8px"
+            this.echartsElem.style.width = "300px"
+            this.echartsElem.style.height = "120px"
+        }
 
 
         this.root.classList.add("mathjax-follower-bg")
@@ -1541,7 +1571,7 @@ class VarProvider{
             }else if(value_init != value){
                 need_trigger_mouse_click = false
             }
-            me.setValue(value)
+            me.setClusterValueOrValue(value)
             me.callback()
             if(VarProvider.lastTouchedVarProvider == undefined || !(VarProvider.lastTouchedVarProvider.isLocked))
                 VarProvider.lastTouchedVarProvider = me
@@ -1836,6 +1866,8 @@ class WikiMathExpressionProperty{
     show_result:boolean
     show_percent:boolean
     ttl:number|undefined = undefined
+    name:string|undefined = undefined
+    to:string|undefined = undefined
 }
 let props:Array<WikiMathExpressionProperty> = []
 
@@ -1851,6 +1883,8 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
         if(elem.getAttribute("data-calc") == "1"){
             prop.show_result = (elem.getAttribute("data-showresult") || "1") == "1"
             prop.show_percent = (elem.getAttribute("data-percent") || "0") == "1"
+            prop.name = elem.getAttribute("data-name") || undefined
+            prop.to = elem.getAttribute("data-to") || undefined
             prop.ttl = +(elem.getAttribute("data-ttl") || "1")
             if(!isFinite(prop.ttl))
                 prop.ttl = 1
@@ -1902,6 +1936,28 @@ for(let m=0;m<maths.length;m++){
         console.log("以下公式没有被解析，因为",e,maths[m])
     }
 }
+
+{
+    //处理prop.name和prop.to，把图像从一个地方合并到另一个地方
+    let followerNameMap = new Map<string, ElementFollower>()
+    for(let i=0;i<followers.length;i++){
+        if(props[i].name!=undefined){
+            let follower = followers[i].toElementFollower()
+            if(follower){
+                followerNameMap.set(props[i].name, follower)
+            }
+        }
+    }
+    for(let i=0;i<followers.length;i++){
+        if(props[i].to != undefined && followerNameMap.has(props[i].to)){
+            let follower = followers[i].toElementFollower()
+            if(follower){
+                follower.echartsMergeTo = followerNameMap.get(props[i].to)
+            }
+        }
+    }
+}
+
 function cut_value(value:number, prop:WikiMathExpressionProperty){
     let cut_digit_to = 4
     if(prop.show_percent)
@@ -2045,6 +2101,21 @@ function calculateEcharts(){
                 ExprContext.ctx.changed = false
                 if(exprs[m].hasResult()){
                     let echartData = followers[m].echartsData
+                    let save_additional_data = true
+                    {
+                        //如果当前的follower将数据送给了别人，就更新别人的echartData，不要更新自己的echartData
+                        let elemFollower = followers[m].toElementFollower()
+                        if(elemFollower && elemFollower.echartsMergeTo){
+                            echartData = elemFollower.echartsMergeTo.echartsData
+                            save_additional_data = false
+                            if(!elemFollower.echartsMergeTo.needEchartsData())
+                                echartData = undefined
+                        }else{
+                            //如果自己的echart没有显示，那就没有必要记录数据
+                            if(!followers[m].needEchartsData())
+                                echartData = undefined
+                        }
+                    }
                     if(echartData){
                         echartData.x[idx] = v
                     }
@@ -2071,10 +2142,12 @@ function calculateEcharts(){
                     }
 
                     let ans = exprs[m].result()
-                    if(compare_result != undefined){
-                        setY("cmp", compare_result ? 1 : 0)
+                    if(save_additional_data){
+                        if(compare_result != undefined){
+                            setY("cmp", compare_result ? 1 : 0)
+                        }
+                        setY("ans", ans)    
                     }
-                    setY("ans", ans)
 
                     ExprContext.ctx.changedCallback = ()=>{}
                     ExprContext.ctx.compareResultCallback = ()=>{}
