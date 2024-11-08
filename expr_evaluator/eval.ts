@@ -489,6 +489,11 @@ class LgExpr extends FuncExpr{
         return Math.log10(this.exprs[0]?.result() ?? NaN)
     }
 }
+class LbExpr extends FuncExpr{
+    result(): number {
+        return Math.log2(this.exprs[0]?.result() ?? NaN)
+    }
+}
 class LogExpr extends FuncExpr{
     result(): number {
         let base = this.exprs[0]?.result() ?? NaN
@@ -605,7 +610,8 @@ let functionKeywords = {
     "min":MinExpr,
     "randFloat":RandomFloatExpr,
     "randInt":RandomIntExpr,
-    "lg":LgExpr
+    "lg":LgExpr,
+    "lb":LbExpr
 }
 
 MathExpr.ops.forEach(v=>{
