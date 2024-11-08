@@ -1104,6 +1104,10 @@ class ElementFollower extends Follower{
 
     is_show_echart = false
     
+    floatPosX = 0
+    floatPosY = 0
+    floatIndicator :HTMLElement
+
     echartsData = new EchartsData()
     echartsMergeTo:ElementFollower|undefined = undefined
 
@@ -1129,6 +1133,7 @@ class ElementFollower extends Follower{
         this.root.innerHTML = `
         <span class='follower-text mathjax-follower-text'></span>
         <span class='mathjax-follower-btns'>
+        <button class='btn btn-link btn-sm follower-drag-and-drop'><i class="fa fa-arrows"></i></button>
         <button class='btn btn-link btn-sm follower-echart-show'>F(x)</button>
         <button class='btn btn-link btn-sm follower-hide-all'><i class="fa fa-eye-slash"></i></button>
         <button class='btn btn-link btn-sm follower-hide'><i class="fa fa-times"></i></button>
@@ -1171,6 +1176,66 @@ class ElementFollower extends Follower{
             }
             this.follow()
         });
+
+        {
+            //setup drag and drop
+            let dropBtn = this.root.querySelector(".follower-drag-and-drop") as HTMLElement
+            let mousemoving = false
+            let initDeltaX,initDeltaY
+            dropBtn.addEventListener("mousedown",(e:MouseEvent)=>{
+                mousemoving = true
+                initDeltaX = this.floatPosX - e.pageX
+                initDeltaY = this.floatPosY - e.pageY
+                e.preventDefault()
+            })
+            document.body.addEventListener("mousemove",(e:MouseEvent)=>{
+                if(mousemoving){
+                    this.floatPosX = initDeltaX + e.pageX
+                    this.floatPosY = initDeltaY + e.pageY
+                    this.follow()
+                    e.preventDefault()
+                }
+            })
+            document.body.addEventListener("mouseup",(e)=>{
+                if(mousemoving){
+                    mousemoving = false
+                    e.preventDefault()
+                }
+            })
+            // dropBtn.addEventListener("mouseleave",()=>{
+            //     mousemoving = false
+            // })
+
+            let touch_identifier = undefined
+            let init_point_x,init_point_y
+
+            dropBtn.addEventListener("touchstart",(ev:TouchEvent)=>{
+                if(touch_identifier) return;
+                if(ev.targetTouches.length == 0) return;
+                touch_identifier = ev.targetTouches[0].identifier;
+                init_point_x = this.floatPosX - ev.targetTouches[0].pageX;
+                init_point_y = this.floatPosY - ev.targetTouches[0].pageY;
+                ev.preventDefault()
+            })
+            dropBtn.addEventListener("touchmove",(ev)=>{
+                for(var i=0;i<ev.changedTouches.length;i++){
+                    if(ev.changedTouches[i].identifier == touch_identifier){
+                        this.floatPosX = init_point_x + ev.changedTouches[i].pageX
+                        this.floatPosY = init_point_y + ev.changedTouches[i].pageY
+                        this.follow()
+                        ev.preventDefault()
+                    }
+                }
+            })
+            dropBtn.addEventListener("touchend",(ev)=>{
+                for(var i=0;i<ev.changedTouches.length;i++){
+                    if(ev.changedTouches[i].identifier == touch_identifier){
+                        touch_identifier = undefined;
+                        ev.preventDefault()
+                    }
+                }    
+            })
+        }
         
         this.root.style.display = "none"
         if(jsOnly){
@@ -1189,7 +1254,6 @@ class ElementFollower extends Follower{
 
         this.root.classList.add("mathjax-follower-bg")
         this.root.style.zIndex = "5"
-        this.follow()
         // document.body.append(this.root)
 
         if(this.elem){
@@ -1200,6 +1264,13 @@ class ElementFollower extends Follower{
             floatContainer.style.height = "0"
             floatContainer.style.verticalAlign = 'top'
             
+            this.floatIndicator = document.createElement("hr")
+            this.floatIndicator.style.width = "0"
+            this.floatIndicator.style.position = "absolute" 
+            this.floatIndicator.style.display = "none"
+            this.floatIndicator.classList.add("follower-hr-line")
+
+            floatContainer.appendChild(this.floatIndicator)
             floatContainer.appendChild(this.root)
             if(this.elem.children.length > 0){
                 this.elem.insertBefore(floatContainer, this.elem.firstChild)
@@ -1207,6 +1278,9 @@ class ElementFollower extends Follower{
                 this.elem.appendChild(floatContainer)
             }
         }
+
+        this.follow()
+
 
         this.root.addEventListener("click",()=>{
             updateFrontFollower(this)
@@ -1239,8 +1313,27 @@ class ElementFollower extends Follower{
             X = 0
         if(Y < 0)
             Y = 0
+        X += this.floatPosX
+        Y += this.floatPosY
+
         this.root.style.left =X + "px"
         this.root.style.top = Y + "px"
+
+        let dX = X - rect.width/2
+        let dY = Y - rect.height/2
+
+        //to the center instead of LU
+        dX += mrect.width/2
+
+        this.floatIndicator.style.left = rect.width/2 + "px"
+        this.floatIndicator.style.top = rect.height/2 + "px"
+        let length = Math.sqrt(dX * dX + dY * dY)
+        this.floatIndicator.style.width = length + "px"
+        let angle = Math.atan2(dY, dX)
+        let transform = 
+            "translate(" + (-length/2) + "px,0px) rotate(" + angle + "rad) translate(" + (length/2) + "px,0px)"
+
+        this.floatIndicator.style.transform = transform
     }
     text(txt){
         this.txtElem.innerText = txt
@@ -1253,10 +1346,12 @@ class ElementFollower extends Follower{
         this.echartsElem.style.display = 'none'
         this.root.style.display = "none"
         this.echartsElem.style.display = "none"
+        this.floatIndicator.style.display = "none"
     }
     show(){
         this.is_hide = false
         this.root.style.display="block"
+        this.floatIndicator.style.display="block"
     }
     isHide(): boolean {
         return this.is_hide
