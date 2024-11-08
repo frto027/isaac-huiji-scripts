@@ -1134,6 +1134,15 @@ class ElementFollower extends Follower{
                 break
             }
         }
+
+        let is_katex = false
+        while(elem && elem.classList.contains("katex-mathml") || elem.classList.contains("katex")){
+            elem = elem.parentElement
+            is_katex = true
+        }
+        if(is_katex && elem && !elem.hasAttribute("data-calc"))
+            elem = elem.parentElement
+    
         this.elem = elem
         this.root = document.createElement("div")
         this.root.innerHTML = `
@@ -2007,6 +2016,7 @@ class WikiMathExpressionProperty{
     ttl:number|undefined = undefined
     name:string|undefined = undefined
     to:string|undefined = undefined
+    is_katex = false
 }
 let props:Array<WikiMathExpressionProperty> = []
 
@@ -2018,8 +2028,18 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
             break
         }
     }
+
+    let is_katex = false
+    while(elem && elem.classList.contains("katex-mathml") || elem.classList.contains("katex")){
+        elem = elem.parentElement
+        is_katex = true
+    }
+    if(is_katex && elem && !elem.hasAttribute("data-calc"))
+        elem = elem.parentElement
+
     if(elem?.hasAttribute("data-calc") ?? false){
         if(elem.getAttribute("data-calc") == "1"){
+            prop.is_katex = is_katex
             prop.show_result = (elem.getAttribute("data-showresult") || "1") == "1"
             prop.show_percent = (elem.getAttribute("data-percent") || "0") == "1"
             prop.name = elem.getAttribute("data-name") || undefined
@@ -2032,13 +2052,19 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
     }
     return false
 }
-debugger
+
 for(let m=0;m<maths.length;m++){
     let prop = new WikiMathExpressionProperty()
     if(!need_calc_math(maths[m], prop))
         continue
     try{
-        let e = factory.fromMathML(maths[m])
+        let mathMLElem:Element = maths[m]
+        if(prop.is_katex && mathMLElem.children.length == 1 && mathMLElem.children[0].tagName == 'semantics'){
+            let sem = mathMLElem.children[0]
+            if(sem.children.length == 2 && sem.children[1].tagName == 'annotation')
+                mathMLElem = sem.children[0]
+        }
+        let e = factory.fromMathML(mathMLElem)
         exprs.push(e)
         let follower
         if(prop.show_result){
@@ -2149,6 +2175,10 @@ function cut_value(value:number, show_percent:boolean, cut_tail_zero /* 全部�
     return value.toExponential(4).replace("e+","e").replace(replace_e,"$1e").replace(".e","e") + tail_txt
 }
 function calculate(){
+    if(exprs.length == 0){
+        console.log("公式列表为空，无可计算公式")
+        return
+    }
     let need_display_followers = isAllFollowersHide()
 
     ExprContext.ctx.reset()
