@@ -1482,6 +1482,8 @@ class ElementFollower extends Follower{
             series:[]
         }
 
+        let graph_type = VarProvider.lastTouchedVarProvider?.getEchartType() ?? 'line'
+
         this.echartsData.y.forEach((v,k)=>{
             if(this.echartsData.y.size > 1 && k == "ans")
                 return
@@ -1502,7 +1504,7 @@ class ElementFollower extends Follower{
                 }
             }
             option.series.push({
-                type:'line',
+                type:graph_type,
                 name:yname,
                 data:values,
                 symbol:'none',
@@ -1512,12 +1514,31 @@ class ElementFollower extends Follower{
                 if(this.echartsData.x[-1-i] == undefined)
                     break;
                 mark_point_count++
+
+                let item_style = ()=>{
+                    if(graph_type == 'bar'){
+                        return  {
+                            borderWidth: 2,
+                            borderColor: 'black',
+                            color:'black'
+                        }
+                    }
+                        
+                    return {
+                        borderWidth: 2,
+                        borderColor: '#EE6666',
+                        color: i == 0 ? 'green' : 'white'
+                    }
+                }
+
                 option.series.push({
-                    type:'line',
+                    type:graph_type,
                     name:yname,
                     tooltip:{show:false},
+                    barGap: "-100%",
                     label: {
                         "show": true, 
+                        color:'black',
                         textBorderColor: 'white',
                         textBorderWidth:2,
                         formatter: (only_has_one_yaxis ?
@@ -1533,11 +1554,7 @@ class ElementFollower extends Follower{
                    data:[[this.echartsData.x[-1-i], v.value[-1-i]]],
                     symbol: 'circle',
                     symbolSize: 5,
-                    itemStyle: {
-                        borderWidth: 2,
-                        borderColor: '#EE6666',
-                        color: i == 0 ? 'green' : 'white'
-                    }
+                    itemStyle: item_style()
                 })
             }
             
@@ -1577,6 +1594,8 @@ class VarProviderCluster{
 }
 
 class VarProvider{
+    static echartType = new Set(["line", "bar"])
+
     static lastTouchedVarProvider:VarProvider|undefined = undefined
 
     static mathJaxUpdateTimeout:number|undefined
@@ -1592,6 +1611,8 @@ class VarProvider{
     callback:()=>void // on value changed callback
     value:number = NaN
     rndType:string = "none"
+
+    echartType:string|undefined
 
     highlightValues:number[] = []
 
@@ -1639,6 +1660,10 @@ class VarProvider{
         this.intOnly = elem.getAttribute("data-mathvar-int") == "true" || elem.getAttribute("data-mathvar-int") == "1"
         this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
+
+        this.echartType = elem.getAttribute('data-mathvar-echarttype') ?? undefined
+        if(!VarProvider.echartType.has(this.echartType))
+            this.echartType = undefined
 
         if(this.rndType == 'rnd'){
             container.style.width = '140px'
@@ -1812,6 +1837,13 @@ class VarProvider{
         // })
     }
 
+    getEchartType():string{
+        if(this.echartType)
+            return this.echartType
+        if(this.intOnly)
+            return 'bar'
+        return 'line'
+    }
     showHelp(){
         this.helpBtn.style.display = 'inline-block'
     }
@@ -1994,7 +2026,7 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
     }
     return false
 }
-
+debugger
 for(let m=0;m<maths.length;m++){
     let prop = new WikiMathExpressionProperty()
     if(!need_calc_math(maths[m], prop))
@@ -2037,6 +2069,7 @@ for(let m=0;m<maths.length;m++){
         console.log("以下公式没有被解析，因为",e,maths[m])
     }
 }
+console.log("公式计算器共成功解析" + exprs.length + "个公式")
 
 {
     //处理prop.name和prop.to，把图像从一个地方合并到另一个地方
