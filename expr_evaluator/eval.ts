@@ -1521,8 +1521,8 @@ class VarProvider{
                 <div class="mathvar-percent"></div>
                 <div class="mathvar-click"></div>
             </div>
-            <button class='mathvar-lock-btn btn btn-sm btn-link' style="padding:0;width:12px"><i class="fa fa-unlock"></i></button>
-            <sup><a class='mathvar-help-btn btn btn-sm btn-link' style="display:none;padding:0;width:8px" href='/wiki/帮助:公式计算器'><i class="fa fa-question-circle-o" style='color:gray'></i></a></sup>
+            <button class='mathvar-lock-btn btn btn-sm btn-link'><i class="fa fa-unlock"></i></button>
+            <sup><a class='mathvar-help-btn btn btn-sm btn-link' style="display:none" href='/wiki/帮助:公式计算器'><i class="fa fa-question-circle-o"></i></a></sup>
         `
         
         let container:HTMLElement = elem.querySelector(".mathvar-input-container")!
@@ -1794,10 +1794,10 @@ class VarProvider{
         this.textElem.innerText = "\\(" + this.hintText(i) + "\\)"
         if(this.rndType != "none"){
             if (isRandomValue) {
-                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#e3e3e3"></i>&nbsp;&nbsp;' + this.textElem.innerHTML;
+                this.textElem.innerHTML = '<i class="fa fa-random mathver-random-highlight"></i>&nbsp;&nbsp;' + this.textElem.innerHTML;
             }
             else {
-                this.textElem.innerHTML = '<i class="fa fa-random" style="color:#757575"></i>&nbsp;&nbsp;' + this.textElem.innerHTML;
+                this.textElem.innerHTML = '<i class="fa fa-random mathver-random-default"></i>&nbsp;&nbsp;' + this.textElem.innerHTML;
             }
         }
         MathJaxHelper.updateMathJax([this.textElem])
@@ -1980,7 +1980,7 @@ function cut_value(value:number, show_percent:boolean, cut_tail_zero /* 全部�
     if(Math.abs(value - (value | 0)) < 0.00000001){
         //确认是整数，而且小于2的32次方
         if(Math.abs(value) < 100000)
-            return value.toFixed(0)
+            return value.toFixed(0) + tail_txt
         return value.toExponential(2).replace("e+","e").replace(replace_e,"$1e").replace(".e","e") + tail_txt
     }
 
