@@ -2,8 +2,6 @@ function displayDebugMessage(){
     return window["mathJaxCalcDebug"] == "1"
 } 
 
-const jsOnly = false
-
 {
     let edom = document.createElement("script")
     edom.src = 'https://spa.huijistatic.com/www/echarts/5.4.0/echarts.min.js'
@@ -1084,6 +1082,8 @@ class Follower{
     setHideAllCallback(f:()=>void){}
     removeHideAllBtn(){}
 
+    hideAllBtns(){}
+
     echartsData:EchartsData|undefined = undefined
     needEchartsData(){return false}
     updateEcharts(){}
@@ -1253,19 +1253,6 @@ class ElementFollower extends Follower{
         }
         
         this.root.style.display = "none"
-        if(jsOnly){
-            this.root.style.textAlign = "right"
-            this.root.style.position = 'absolute'
-            this.root.style.padding = "2px 8px"
-            this.root.style.backgroundColor = 'rgb(253 196 144 / 100%)'
-            this.root.style.borderRadius = "4px"
-            this.root.style.border = "solid 1px black"
-            this.root.style.padding = "4px 8px"
-
-            this.echartsElem.style.width = "300px"
-            this.echartsElem.style.height = "120px"
-        }
-
 
         this.root.classList.add("mathjax-follower-bg")
         this.root.style.zIndex = "5"
@@ -1301,6 +1288,17 @@ class ElementFollower extends Follower{
             updateFrontFollower(this)
         })
     }
+
+    hideAllBtns(){
+        let elems = this.root.getElementsByTagName("button")
+        for(let i=0;i<elems.length;i++){
+            //留一个关闭悬浮框的按钮别删
+            if(elems[i].classList.contains("follower-hide-all"))
+                continue
+            elems[i].style.display = 'none'
+        }
+    }
+
     isUsefulFollower(): boolean {
         return true
     }
@@ -2017,6 +2015,29 @@ class WikiMathExpressionProperty{
     name:string|undefined = undefined
     to:string|undefined = undefined
     is_katex = false
+
+    ui:string = undefined
+
+    
+    displayEmojiIfPossible(){
+        if(this.ui == "tiny" || this.ui == "btntiny")
+            return true
+        return false
+    }
+    needLatexVariablePrefix(){
+        if(this.ui == "tiny" || this.ui == "btntiny")
+            return false
+        return true
+    }
+    needBtn(){
+        if(this.ui == "tiny"){
+            return false
+        }
+        if(this.ui == "nobtn"){
+            return false
+        }
+        return true
+    }
 }
 let props:Array<WikiMathExpressionProperty> = []
 
@@ -2042,6 +2063,7 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
             prop.is_katex = is_katex
             prop.show_result = (elem.getAttribute("data-showresult") || "1") == "1"
             prop.show_percent = (elem.getAttribute("data-percent") || "0") == "1"
+            prop.ui = elem.getAttribute("data-ui") || ""
             prop.name = elem.getAttribute("data-name") || undefined
             prop.to = elem.getAttribute("data-to") || undefined
             prop.ttl = +(elem.getAttribute("data-ttl") || "1")
@@ -2066,7 +2088,7 @@ for(let m=0;m<maths.length;m++){
         }
         let e = factory.fromMathML(mathMLElem)
         exprs.push(e)
-        let follower
+        let follower : Follower
         if(prop.show_result){
             follower = new ElementFollower(maths[m])
         }else{
@@ -2095,6 +2117,8 @@ for(let m=0;m<maths.length;m++){
             }
             fix(e)
         }
+        if(!prop.needBtn())
+            follower.hideAllBtns()
 
         console.log("已解析公式：", e.toString(), e)
     }catch(e){
@@ -2199,6 +2223,7 @@ function calculate(){
             ExprContext.ctx.changed = false
             if(expr_ttl[m] <= 0)
                 continue
+            let needLatexPrefix = props[m].needLatexVariablePrefix()
             if(exprs[m].hasResult()){
                 let updated_vars = ""
                 ExprContext.ctx.changedCallback = (name,value,changed)=>{
@@ -2221,17 +2246,23 @@ function calculate(){
                 if(compare_result != undefined){
                     if(updated_vars.length > 0) updated_vars += "\n"
                     if(compare_result){
-                        updated_vars += "✔️成立"
+                        updated_vars += "✔️"
+                        if(!props[m].displayEmojiIfPossible())
+                            updated_vars += "成立"
                     }else{
-                        updated_vars += "❌不成立"
+                        updated_vars += "❌"
+                        if(!props[m].displayEmojiIfPossible())
+                            updated_vars += "不成立"
                     }
                 }
                 // show ans
                 if(updated_vars.length == 0){
-                    updated_vars = "\\(ans=" + cut_value(result, props[m].show_percent, true, true) + "\\)"
+                    if(needLatexPrefix){
+                        updated_vars = "\\(ans=" + cut_value(result, props[m].show_percent, true, true) + "\\)"
+                    }else{
+                        updated_vars = cut_value(result, props[m].show_percent, true, false)
+                    }
                 }
-                // if(updated_vars.length > 0) updated_vars += "\n"
-                // updated_vars += "\\(ans=" + result + "\\)"
                 if(displayDebugMessage())
                 console.log("公式求值：" + exprs[m].toString() + "-> " + result)
                 let _follower = followers[m]
