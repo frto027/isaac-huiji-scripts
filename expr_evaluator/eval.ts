@@ -1,10 +1,55 @@
 function displayDebugMessage(){
     return window["mathJaxCalcDebug"] == "1"
 } 
-
+let echart_theme: string|undefined = undefined
+let echart_highlight_config = {
+    //这个对象的key会被遍历，并添加由wikitext输入的内容，注意过滤
+    label_color:'black',
+    text_border_color:'white',
+    text_border_width:2,
+    
+    tooltip_axis_pointer_linestyle_color:'black',
+    
+    data_symbol_size:5,
+    data_itemstyle_bar_border_width:2,
+    data_itemstyle_bar_border_color:'black',
+    data_itemstyle_bar_color:'black',
+    
+    data_itemstyle_line_border_width:2,
+    data_itemstyle_line_border_color:'#EE6666',
+    data_itemstyle_line_color_0:'green',
+    data_itemstyle_line_color_i:'white',
+}
 {
     let edom = document.createElement("script")
     edom.src = 'https://spa.huijistatic.com/www/echarts/5.4.0/echarts.min.js'
+    edom.onload = function(){
+        let theme_div = document.getElementById("mathjax_echart_theme")
+        if(theme_div == undefined)
+            return
+
+        //自定义echart_highlight_config属性
+        for(let k in echart_highlight_config){
+            let v = theme_div.getAttribute("data-" + k)
+            if(v){
+                if(typeof(echart_highlight_config[k]) == "number"){
+                    echart_highlight_config[k] = +v
+                }else if(typeof(echart_highlight_config[k]) == "string"){
+                    echart_highlight_config[k] = v
+                }
+            }
+        }
+        
+        try{
+            let theme_json = JSON.parse(theme_div.innerText)
+            echart_theme = 'mathjax_echart_theme'
+            window["echarts"].registerTheme(echart_theme, theme_json)
+            console.log("公式计算器已加载echart主题", theme_json, echart_highlight_config)
+        }catch(e){
+            console.error(e)
+            return
+        }
+    }
     document.body.append(edom)
 }
 
@@ -1434,21 +1479,11 @@ class ElementFollower extends Follower{
         let option = {
             xAxis:{
                 name:cleanup_mathjax(this.echartsData.x_tag).replace(new RegExp("[<>]"),""), /* 无需过滤，意思一下 */
-                splitLine:{
-                    lineStyle:{
-                      color:'black'
-                    }
-                },
                 axisLine:{
                     onZero: false
                 }
             },
             yAxis:{
-                splitLine:{
-                  lineStyle:{
-                    color:'black'
-                  }
-                },
                 axisLabel:{
                     formatter:(v)=>{
                         return fixedY(v)
@@ -1472,7 +1507,7 @@ class ElementFollower extends Follower{
                 axisPointer: {
                     type: 'line',
                     lineStyle:{
-                        color:"black"
+                        color:echart_highlight_config.tooltip_axis_pointer_linestyle_color
                     }
                 },
           
@@ -1531,16 +1566,16 @@ class ElementFollower extends Follower{
                 let item_style = ()=>{
                     if(graph_type == 'bar'){
                         return  {
-                            borderWidth: 2,
-                            borderColor: 'black',
-                            color:'black'
+                            borderWidth: echart_highlight_config.data_itemstyle_bar_border_width,
+                            borderColor: echart_highlight_config.data_itemstyle_bar_border_color,
+                            color:echart_highlight_config.data_itemstyle_bar_color
                         }
                     }
                         
                     return {
-                        borderWidth: 2,
-                        borderColor: '#EE6666',
-                        color: i == 0 ? 'green' : 'white'
+                        borderWidth: echart_highlight_config.data_itemstyle_line_border_width,
+                        borderColor: echart_highlight_config.data_itemstyle_line_border_color,
+                        color: i == 0 ? echart_highlight_config.data_itemstyle_line_color_0 : echart_highlight_config.data_itemstyle_line_color_i
                     }
                 }
 
@@ -1551,9 +1586,9 @@ class ElementFollower extends Follower{
                     barGap: "-100%",
                     label: {
                         "show": true, 
-                        color:'black',
-                        textBorderColor: 'white',
-                        textBorderWidth:2,
+                        color:echart_highlight_config.label_color,
+                        textBorderColor: echart_highlight_config.text_border_color,
+                        textBorderWidth:echart_highlight_config.text_border_width,
                         formatter: (only_has_one_yaxis ?
                             (params) => {
                                 return "(" + fixed(params.data[0]) + ", " + fixedY(params.data[1]) + ")"
@@ -1566,7 +1601,7 @@ class ElementFollower extends Follower{
                    },
                    data:[[this.echartsData.x[-1-i], v.value[-1-i]]],
                     symbol: 'circle',
-                    symbolSize: 5,
+                    symbolSize: echart_highlight_config.data_symbol_size,
                     itemStyle: item_style()
                 })
             }
@@ -1578,7 +1613,11 @@ class ElementFollower extends Follower{
         this.echartsMarkPointCount = mark_point_count
         
         if(this.echartsObject == undefined){
-            this.echartsObject = window["echarts"].init(this.echartsElem)
+            if(echart_theme){
+                this.echartsObject = window["echarts"].init(this.echartsElem, echart_theme)
+            }else{
+                this.echartsObject = window["echarts"].init(this.echartsElem)
+            }
         }
         this.echartsObject.setOption(option, !canMerge)
     }
