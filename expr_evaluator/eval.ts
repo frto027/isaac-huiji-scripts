@@ -19,6 +19,11 @@ let echart_highlight_config = {
     data_itemstyle_line_border_color:'#EE6666',
     data_itemstyle_line_color_0:'green',
     data_itemstyle_line_color_i:'white',
+    
+    grid_left: 50,
+    grid_right: 60,
+    grid_top: 40,
+    grid_bottom: 30,
 }
 {
     let edom = document.createElement("script")
@@ -1492,15 +1497,14 @@ class ElementFollower extends Follower{
                 axisLine:{
                     onZero: false
                 }
-
             },
             title:{show:false},
             legend:{show:false},
             grid: {
-                left:  50,
-                right: 60,
-                top: 40,
-                bottom: 30
+                left:  echart_highlight_config.grid_left,
+                right: echart_highlight_config.grid_right,
+                top: echart_highlight_config.grid_top,
+                bottom: echart_highlight_config.grid_bottom,
               },
             tooltip:{
                 trigger:'axis',
