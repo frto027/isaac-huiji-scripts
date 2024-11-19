@@ -11,7 +11,14 @@ import pytabx
 import xmlhelper
 site = isaac.site('sync/itempools.py')
 
-tabx = pytabx.HuijiTabx(site.Pages['Data:Itempool rep.tabx'], remove_all_datas=True)
+tabx = pytabx.HuijiTabx(site.Pages['Data:Itempool repp.tabx'], remove_all_datas=True)
+
+# tabx.add_field("name","name", pytabx.TabxField.TYPE_STRING)
+# tabx.add_field("id","id", pytabx.TabxField.TYPE_NUMBER)
+# tabx.add_field("weight","weight", pytabx.TabxField.TYPE_NUMBER)
+# tabx.add_field("decreaseby","decreaseby", pytabx.TabxField.TYPE_NUMBER)
+# tabx.add_field("removeon","removeon", pytabx.TabxField.TYPE_NUMBER)
+
 for ch in xmlhelper.game_file('itempools.xml'):
     assert ch.tag == 'Pool'
     for item in ch:

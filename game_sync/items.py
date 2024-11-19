@@ -19,15 +19,15 @@ for ch in xmlhelper.game_file('items_metadata.xml'):
     if ch.tag == "item":
         page = "c" + ch.attrib["id"]
         data = tabx.get_row_by_unique_field("page", page)
-        data.set_int("quality", ch.attrib, 'quality')
-        data.set_str("tag", ch.attrib, "tags", empty_as_default=True)
-        data.set_int("craftquality", ch.attrib, "craftquality", -2147483648)
+        data.set_int("QualityRepp", ch.attrib, 'quality')
+        data.set_str("TagRepp", ch.attrib, "tags", empty_as_default=True)
+        data.set_int("CraftQualityRepp", ch.attrib, "craftquality", -2147483648)
     if ch.tag == "trinket":
         page = "t" + ch.attrib["id"]
         data = tabx.get_row_by_unique_field("page", page)
-        data.set_int("quality", ch.attrib, 'quality')
-        data.set_str("tag", ch.attrib, "tags", empty_as_default=True)
-        data.set_int("craftquality", ch.attrib, "craftquality", -2147483648)
+        data.set_int("QualityRepp", ch.attrib, 'quality')
+        data.set_str("TagRepp", ch.attrib, "tags", empty_as_default=True)
+        data.set_int("CraftQualityRepp", ch.attrib, "craftquality", -2147483648)
 
 for ch in xmlhelper.game_file('items.xml'):
     if ch.tag == 'passive' or ch.tag == 'active' or ch.tag == 'familiar':

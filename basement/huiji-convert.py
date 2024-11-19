@@ -123,8 +123,11 @@ import isaac
 site = isaac.site("basement/huiji_convert.py")
 page_counter = {}
 
+valid_rooms = set()
+
 for room in tqdm(results, desc='upload pages'):
     page_name = f"Data:rooms/{room['_file']}/{room['_i']}.json"
+    valid_rooms.add(page_name.lower())
     page_content = json.dumps(room)
     # for s in room['spawns']:
     #     if len(s["entity"]) > 1:
@@ -133,3 +136,12 @@ for room in tqdm(results, desc='upload pages'):
     # print(page_name)
     # print(page_content)
     site.Pages[page_name].save(page_content, summary='自动上传地形文件')
+
+# TODO：搞明白现在的rooms文件夹结构
+
+# rooms_in_wiki = set()
+
+# for p in site.allpages(namespace='3500',prefix='rooms/'):
+#     rooms_in_wiki.add(p.name.lower())
+
+# print(','.join(valid_rooms - rooms_in_wiki))
