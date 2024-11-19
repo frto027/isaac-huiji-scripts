@@ -29,7 +29,7 @@ colors : dict[str,Color]= {}
 
 site = isaac.site("wisps/update.py")
 tabx = pytabx.HuijiTabx(site.Pages["Data:Wisps.tabx"])
-print(tabx.dump_fields())
+tabx.dump("before.json")
 for tag in doc:
     if tag.tag == 'color':
         def g(x):
@@ -60,4 +60,5 @@ for tag in doc:
                 print(f"warning: path not found:{tag.attrib['coreGfx']}")
             else:
                 d["coreGfx"] = path
-tabx.save()
+tabx.dump("after.json")
+# tabx.save()

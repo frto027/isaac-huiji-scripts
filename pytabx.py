@@ -56,12 +56,25 @@ class TabxDataRow:
         else:
             self._row[field._index] = value
 
+    def set_int(self, fieldName:str, dict:dict[str,str], key_in_str:str, default = None):
+        if key_in_str in dict:
+            self.set(fieldName, int(dict[key_in_str]))
+        else:
+            self.set(fieldName, default)
+    def set_str(self, fieldName:str, dict:dict[str,str], key_in_str:str, default = None, empty_as_default = False):
+        value = default
+        if key_in_str in dict:
+            if dict[key_in_str] == "" and empty_as_default:
+                pass
+            else:
+                value = dict[key_in_str]
+        self.set(fieldName, value)
     
     def dump(self, with_header :bool = True):
         rets = []
         for i in range(len(self._parentTabx._fields)):
             if with_header:
-                rets.append(f"{self._parentTabx._fields[i]}:{self._row[i]}")
+                rets.append(f"{self._parentTabx._fields[i]}:({type(self._row[i])}){self._row[i]}")
             else:
                 rets.append(f"{self._row[i]}")
         return ','.join(rets)
@@ -84,11 +97,14 @@ class Tabx:
     LICENSE_dl_de_by_1_0 = "dl-de-by-1.0"
     LICENSE_dl_de_by_2_0 = "dl-de-by-2.0"
 
-    def __init__(self, tabx_json_str:str):
+    def __init__(self, tabx_json_str:str, remove_all_datas = False):
         self._data = json.loads(tabx_json_str)
         self._fields : list[TabxField] = []
         self._fieldsMap : dict[str, TabxField] = dict()
         self._columnIndex : dict[str,dict[str, TabxDataRow]] = {}
+
+        if remove_all_datas:
+            self._data["data"] = []
         for i in range(len(self._data["schema"]["fields"])):
             self._fields.append(TabxField(self._data["schema"]["fields"][i], i))
         for f in self._fields:
@@ -152,7 +168,7 @@ class Tabx:
     def fields(self)->list[TabxField]:
         return [x for x in self._fields]
     def dump_fields(self):
-        return ','.join([str(x) for x in self.fields()])
+        return ','.join([f"({type(x)}){str(x)}" for x in self.fields()])
     
     def get_row_by_unique_field(self, fieldName:str, value, create_ok = False) -> TabxDataRow | None:
         if not fieldName in self._columnIndex:
@@ -173,7 +189,7 @@ class Tabx:
         return json.dumps(self._data, ensure_ascii=False)
     
 class HuijiTabx(Tabx):
-    def __init__(self, page:mwclient.page.Page, create_new :bool = False):
+    def __init__(self, page:mwclient.page.Page, create_new :bool = False, remove_all_datas = False):
         if create_new:
             super().__init__("""{
     "description": {"en": "table description"},
@@ -187,7 +203,7 @@ class HuijiTabx(Tabx):
     ]
 }""")
         else:
-            super().__init__(page.text())
+            super().__init__(page.text(), remove_all_datas)
         self._page = page
 
         self.init_json = self.to_json()
