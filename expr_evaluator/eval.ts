@@ -715,7 +715,7 @@ class ExprFactory{
 
         let mo_equal_maps = {
             __proto__:null,
-            "*":"×∗",
+            "*":"×∗⋅",
             "-":"−",
             ">=":"≥",
             "<=":"≤",
