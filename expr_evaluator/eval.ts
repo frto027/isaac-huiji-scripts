@@ -230,6 +230,51 @@ class BinaryExpr extends Expr{
     }
 }
 
+class BinaryLogicExpr extends BinaryExpr{
+    cmpResult : boolean | undefined = undefined
+    constructor(left:Expr,right:Expr,op:string){
+        super(left, right, op)
+    }
+    result(): number {
+        let oldCallback = ExprContext.ctx.compareResultCallback
+        let L:boolean|undefined = undefined,R:boolean|undefined = undefined
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = r}
+        let Lresult = this.left.result()
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ R = r}
+        let Rresult = this.right.result()
+        ExprContext.ctx.compareResultCallback = oldCallback
+
+        if(L==undefined)
+            L = Math.abs(Lresult) > 0.5
+        if(R == undefined)
+            R = Math.abs(Rresult) > 0.5
+
+        this.cmpResult = this.logicResult(L,R)
+        if(ExprContext.ctx.compareResultCallback){
+            ExprContext.ctx.compareResultCallback(this, this.cmpResult)
+        }
+        return this.cmpResult ? 1 : 0
+    }
+    logicResult(L:boolean, R:boolean):boolean{
+        return false
+    }
+}
+class AndExpr extends BinaryLogicExpr{
+    constructor(left:Expr,right:Expr){
+        super(left, right, "[and]")
+    }
+    logicResult(L: boolean, R: boolean): boolean {
+        return L && R
+    }
+}
+class OrExpr extends BinaryLogicExpr{
+    constructor(left:Expr,right:Expr){
+        super(left, right, "[or]")
+    }
+    logicResult(L: boolean, R: boolean): boolean {
+        return L || R
+    }
+}
 class AssignExpr extends BinaryExpr{
     cmpResult : boolean|undefined = undefined
     canBeCmp : boolean = true
@@ -375,6 +420,26 @@ class DivExpr extends BinaryExpr{
     }
 }
 
+class ModExpr extends BinaryExpr{
+    constructor(left:Expr,right:Expr){
+        super(left,right, "[mod]")
+    }
+    result(): number {
+        return this.left.result() % this.right.result()
+    }
+    equal_to(result: number): void {
+        // mod运算不支持反推
+        // let hasL = this.left.hasResult()
+        // let hasR = this.right.hasResult()
+        // //
+        // if(!hasL && hasR){
+        //     this.left.equal_to(result)
+        // }else if(!hasR && hasL){
+        //     this.right.equal_to(this.left.result() / result)
+        // }
+    }
+}
+
 class PowExpr extends BinaryExpr{
     constructor(left:Expr,right:Expr){
         super(left,right, "^")
@@ -412,6 +477,39 @@ class UnaryExpr extends Expr{
     }
     toString(): string {
         return "(" + this.op + "(" + this.expr.toString() + "))"
+    }
+}
+class UnaryLogicExpr extends UnaryExpr{
+    cmpResult : boolean | undefined = undefined
+    constructor(expr:Expr,op:string){
+        super(expr, op)
+    }
+    result(): number {
+        let oldCallback = ExprContext.ctx.compareResultCallback
+        let L:boolean|undefined = undefined
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = r}
+        let R = this.expr.result()
+        ExprContext.ctx.compareResultCallback = oldCallback
+
+        if(L == undefined)
+            L = Math.abs(R) > 0.5
+
+        this.cmpResult = this.logicResult(L)
+        if(ExprContext.ctx.compareResultCallback){
+            ExprContext.ctx.compareResultCallback(this, this.cmpResult)
+        }
+        return this.cmpResult ? 1 : 0
+    }
+    logicResult(L:boolean):boolean{
+        return false
+    }
+}
+class NotExpr extends UnaryLogicExpr{
+    constructor(expr){
+        super(expr, "[not]")
+    }
+    logicResult(L: boolean): boolean {
+        return !L
     }
 }
 
@@ -488,13 +586,17 @@ class SelectExpr extends Expr{
     result(): number {
         for(let i=0;i<this.items.length;i++){
             let oldCallback = ExprContext.ctx.compareResultCallback
-            let cond = true
+            let cond:boolean|undefined = undefined
             ExprContext.ctx.compareResultCallback = function(expr, result){
                 if(result == undefined || result == false){
                     cond = false
+                }else{
+                    cond = true
                 }
             }
-            this.items[i].cond.result()
+            let condResult = this.items[i].cond.result()
+            if(cond == undefined)
+                cond = Math.abs(condResult) > 0.5
             ExprContext.ctx.compareResultCallback = oldCallback
             if(cond){
                 return this.items[i].value.result()
@@ -722,6 +824,9 @@ class ExprFactory{
             "!=":"≠",
             "(":"⌊⌈",
             ")":"⌋⌉",
+            "and":"且∧",
+            "or":"或∨",
+            "not":"非¬",
             "":'⁡' /* invisible character here */
         }
         function mo(predict:string){
@@ -750,6 +855,15 @@ class ExprFactory{
                 "mi","mn","msubsup","msub","msup","mfrac","mrow","msqrt"
             ]
 
+            if(tag("mi")){
+                const txt = peek().textContent
+                if(txt == "mod")
+                    return false
+                if(txt == "¬")
+                    return false
+                if(txt == "且" || txt == "或" || txt == "非")
+                    return false
+            }
             if(tag("mstyle") && peek().children.length == 1){
                 //有时候内容会被包裹在一个mstyle里面
                 return singleValueTagNames.indexOf(peek().children[0].tagName) >= 0
@@ -793,7 +907,7 @@ class ExprFactory{
                 assert(tag.children[0].tagName == "mi" || tag.children[0].tagName == "mn", "not supported")
                 if(tag.children[2].tagName == "mo" && !is_sub((tag.children[2].textContent || "-")[0]) && !(new RegExp("^[0-9].*$").exec(tag.children[2].textContent || "0"))){
                     //角标特判，右上角标为变量名
-                    return new Variable((tag.children[0].textContent || "?") + "^" + (tag.children[2].textContent || "?"), tag.children[1].textContent || "?");
+                    return new Variable((tag.children[0].textContent || "?") + "^" + (tag.children[2].textContent || "?"), "{" + (tag.children[1].textContent || "?") + "}");
                 }
                 if(tag.children[1].tagName == "mrow"){
                     //手动处理下标为_{xxx}的情况
@@ -802,7 +916,7 @@ class ExprFactory{
                     return new PowExpr(v,p)
                 }
                 assert(tag.children[1].tagName == "mi" || tag.children[1].tagName == "mn", "not supported")
-                let v = new Variable(tag.children[0].textContent||"?", tag.children[1].textContent||"?")
+                let v = new Variable(tag.children[0].textContent||"?", "{" + (tag.children[1].textContent||"?") + "}")
                 let p = readSingleValueExpr(tag.children[2])
                 return new PowExpr(v,p)
             }
@@ -923,11 +1037,24 @@ class ExprFactory{
             return new Expr()
         }
 
+        function skipEmpties(){
+            while(hasMore() && (
+                mo("") ||
+                /*
+                <mstyle scriptlevel="0">
+                    <mspace width="0.167em"></mspace>
+                </mstyle>
+                */
+                (peek().tagName == "mstyle" && peek().children.length == 1 && peek().children[0].tagName == "mspace") ||
+                peek().tagName == "mspace"
+            ))
+                next()
+        }
+
         function readSingleValue():Expr{
 
             let ret = readSingleValueExpr(next())
-            while(hasMore() && mo(""))
-                next()//empty next inside sin function
+            skipEmpties();
 
             function readFunctionArguments(funcret:FuncExpr){
                 assert(mo("("), "'(' expected")
@@ -967,16 +1094,20 @@ class ExprFactory{
             return ret
         }
         function readValue(readAllCheck = true, priority = -1):Expr{
-            const P_MUL = 700
-            const P_ADDSUB = 500
-            const P_UNARY = 1000
-            const P_CMP_OR_EQUALS = 100
+            const P_UNARY           = 1000
+            const P_MUL             = 700
+            const P_ADDSUB          = 500
+            const P_MOD             = 150
+            const P_CMP_OR_EQUALS   = 100
+
+            const P_NOT             = 60
+            const P_AND             = 50
+            const P_OR              = 40
 
             let first :Expr | undefined = undefined
 
             while(true){
-                while(hasMore() && mo(""))
-                    next()//ignore empty mo
+                skipEmpties();
 
                 if(!hasMore()){
                     assert(first != undefined, "no value was readed")
@@ -1026,6 +1157,18 @@ class ExprFactory{
                     }else{
                         return first
                     }
+                }else if(mo("not") || 
+                    (tag("mi") && (
+                        peek().textContent == "¬" || 
+                        peek().textContent == "非"
+                    ) )
+                ){
+                    if(first == undefined){
+                        next()
+                        first = new NotExpr(readValue(false, P_NOT))
+                    }else{
+                        return first
+                    }
                 }else if(mo("+")){
                     if(first == undefined){
                         next()
@@ -1052,7 +1195,30 @@ class ExprFactory{
                     }else{
                         return first
                     }
-                }else if(peek().tagName == "mi" && peek().textContent == "%"){
+                }else if(mo("and") || (tag("mi") && peek().textContent == "且")){
+                    assert(first != undefined, "'and' can't be the first operator")
+                    if(priority < P_AND){
+                        next()
+                        first = new AndExpr(first, readValue(false, P_AND))
+                    }else{
+                        return first
+                    }
+                }else if(mo("or") || (tag("mi") && peek().textContent == "或")){
+                    assert(first != undefined, "'or' can't be the first operator")
+                    if(priority < P_OR){
+                        next()
+                        first = new OrExpr(first, readValue(false, P_OR))
+                    }else{
+                        return first
+                    }
+                }else if(peek().tagName == "mi" && peek().textContent == "mod") {
+                    if(priority < P_MOD){
+                        next()
+                        first = new ModExpr(first, readValue(false, P_MOD))
+                    }else{
+                        return first
+                    }
+                } else if(peek().tagName == "mi" && peek().textContent == "%"){
                     if(priority < P_MUL){
                         next()
                         first = new DivExpr(first, new ConstExpr(100))
