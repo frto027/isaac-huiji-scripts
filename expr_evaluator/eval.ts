@@ -1211,7 +1211,7 @@ class ExprFactory{
                     }else{
                         return first
                     }
-                }else if(peek().tagName == "mi" && peek().textContent == "mod") {
+                }else if(mo("mod") || (peek().tagName == "mi" && peek().textContent == "mod")) {
                     if(priority < P_MOD){
                         next()
                         first = new ModExpr(first, readValue(false, P_MOD))
@@ -1830,6 +1830,7 @@ class VarProvider{
     intScale:number = 1
     varname:string
     init:number
+    logicHint:string[] = []
     callback:()=>void // on value changed callback
     value:number = NaN
     rndType:string = "none"
@@ -1882,7 +1883,8 @@ class VarProvider{
         this.intOnly = elem.getAttribute("data-mathvar-int") == "true" || elem.getAttribute("data-mathvar-int") == "1"
         this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
-
+        this.logicHint = (elem.getAttribute("data-logichint") || "").split(",")
+        
         this.echartType = elem.getAttribute('data-mathvar-echarttype') ?? undefined
         if(!VarProvider.echartType.has(this.echartType))
             this.echartType = undefined
@@ -2123,6 +2125,9 @@ class VarProvider{
 
     hintText(v:number){
     	if(this.intOnly) v = Math.round(v / this.intScale) * this.intScale;
+        if(this.intOnly && v >= 0 && v < this.logicHint.length){
+            return this.varname + '←' + this.logicHint[v];
+        }
         let r = cut_value(v, false, true, true)
         return this.varname + '=' +  r;
     };
