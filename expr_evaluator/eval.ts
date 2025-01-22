@@ -88,12 +88,31 @@ interface CompareExprLike{
     cmpResult : boolean|undefined
 }
 
+interface LogicExprAssertResultCallbacks{
+    anything_changed(varname:string, result:boolean),
+    assert_failed()
+}
+
+interface LogicExprLike{
+    assert_result(result:boolean, callbacks:LogicExprAssertResultCallbacks):void
+}
+
+function condAnd(cond1:undefined|boolean, cond2:undefined|boolean):undefined|boolean{
+    if(cond1 == undefined)
+        return cond2
+    if(cond2 == undefined)
+        return cond1
+    return cond1 && cond2
+}
+
 class ExprContext{
     static ctx:ExprContext = new ExprContext()
 
     changed = false
 
     vars:Map<string,number> = new Map()
+
+    logicVarNames:Set<string> = new Set()
 
     rndFloatExprValues: Map<number,number> = new Map()
     rndIntExprValues: Map<number,number> = new Map()
@@ -162,6 +181,14 @@ class Expr{
     toLogExpr():LogExpr|undefined{
         return undefined
     }
+
+    toLogicExprLike():LogicExprLike|undefined{
+        return undefined
+    }
+
+    suggestUseAsLogic():boolean{
+        return false
+    }
 }
 class ConstExpr extends Expr{
     val:number
@@ -182,6 +209,8 @@ class ConstExpr extends Expr{
 class Variable extends Expr{
     name: string
     sub: string|undefined
+
+    cmpResult: boolean
     constructor(name:string, sub:string|undefined){
         super()
         this.name = name
@@ -192,6 +221,11 @@ class Variable extends Expr{
         return ExprContext.ctx.has(this.toString())
     }
     result(): number {
+        if(ExprContext.ctx.logicVarNames.has(this.toString())){
+            this.cmpResult = Math.abs(ExprContext.ctx.get(this.toString())) > 0.5
+            if(ExprContext.ctx.compareResultCallback)
+                ExprContext.ctx.compareResultCallback(this, this.cmpResult)
+        }
         return ExprContext.ctx.get(this.toString())
     }
     equal_to(result: number): void {
@@ -206,6 +240,22 @@ class Variable extends Expr{
     isVariableExpr(): boolean {
         return true
     }
+
+    toLogicExprLike(): LogicExprLike | undefined {
+        return this
+    }
+    assert_result(result:boolean, callbacks:LogicExprAssertResultCallbacks){
+        callbacks.anything_changed(this.toString(), result)
+        ExprContext.ctx.set(this.toString(), result ? 1 : 0)
+        if(displayDebugMessage() && !ExprContext.ctx.logicVarNames.has(this.toString()))
+            console.log(this.toString() + " 被标注为逻辑变量，因为被某个逻辑断言直接或间接赋值")
+        ExprContext.ctx.logicVarNames.add(this.toString())
+    }
+
+    suggestUseAsLogic(): boolean {
+        return ExprContext.ctx.logicVarNames.has(this.toString())
+    }
+
 }
 
 class BinaryExpr extends Expr{
@@ -238,9 +288,9 @@ class BinaryLogicExpr extends BinaryExpr{
     result(): number {
         let oldCallback = ExprContext.ctx.compareResultCallback
         let L:boolean|undefined = undefined,R:boolean|undefined = undefined
-        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = r}
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = condAnd(L, r)}
         let Lresult = this.left.result()
-        ExprContext.ctx.compareResultCallback = (e,r)=>{ R = r}
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ R = condAnd(R, r)}
         let Rresult = this.right.result()
         ExprContext.ctx.compareResultCallback = oldCallback
 
@@ -258,6 +308,37 @@ class BinaryLogicExpr extends BinaryExpr{
     logicResult(L:boolean, R:boolean):boolean{
         return false
     }
+
+    toLogicExprLike(): LogicExprLike | undefined {
+        return this
+    }
+
+    assert_result(result:boolean, assert_result_callback:LogicExprAssertResultCallbacks){
+        let oldCallback = ExprContext.ctx.compareResultCallback
+        let L:boolean|undefined = undefined,R:boolean|undefined = undefined
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = condAnd(L,r)}
+        if(this.left.hasResult()){
+            let Lresult = this.left.result()
+            if(L==undefined)
+                L = Math.abs(Lresult) > 0.5
+        }
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ R = condAnd(R,r)}
+        if(this.right.hasResult()){
+            let Rresult = this.right.result()
+            if(R == undefined)
+                R = Math.abs(Rresult) > 0.5    
+        }
+        ExprContext.ctx.compareResultCallback = oldCallback
+
+        this._assert_result(L, R, result, assert_result_callback)
+    }
+
+    _assert_result(L:boolean, R:boolean|undefined, result:boolean, assert_result_callback:LogicExprAssertResultCallbacks){
+    }
+
+    suggestUseAsLogic(): boolean {
+        return true
+    }
 }
 class AndExpr extends BinaryLogicExpr{
     constructor(left:Expr,right:Expr){
@@ -265,6 +346,34 @@ class AndExpr extends BinaryLogicExpr{
     }
     logicResult(L: boolean, R: boolean): boolean {
         return L && R
+    }
+    _assert_result(L: boolean | undefined, R: boolean | undefined, result: boolean, assert_result_callback:LogicExprAssertResultCallbacks): void {
+        if(result){
+            if(L != undefined && !L)
+                assert_result_callback.assert_failed()
+            else if(R != undefined && !R)
+                assert_result_callback.assert_failed()
+            else{
+                if(L == undefined)
+                    this.left.toLogicExprLike()?.assert_result(true, assert_result_callback)
+                if(R == undefined)
+                    this.right.toLogicExprLike()?.assert_result(true, assert_result_callback)
+            }
+        }else{
+            if(L != undefined && R != undefined){
+                if(L && R){
+                    assert_result_callback.assert_failed()
+                }
+            }else if(L != undefined && R == undefined){
+                if(L){
+                    this.right.toLogicExprLike()?.assert_result(false, assert_result_callback)
+                }
+            }else if(L == undefined && R != undefined){
+                if(R){
+                    this.left.toLogicExprLike()?.assert_result(false, assert_result_callback)
+                }
+            }
+        }
     }
 }
 class OrExpr extends BinaryLogicExpr{
@@ -274,14 +383,53 @@ class OrExpr extends BinaryLogicExpr{
     logicResult(L: boolean, R: boolean): boolean {
         return L || R
     }
+
+    _assert_result(L: boolean | undefined, R: boolean | undefined, result: boolean, assert_result_callback: LogicExprAssertResultCallbacks): void {
+        if(result){
+            if(L != undefined && R != undefined){
+                if(L || R){
+
+                }else{
+                    assert_result_callback.assert_failed()
+                }
+            }else if(L != undefined && R == undefined){
+                if(L){
+
+                }else{
+                    this.right.toLogicExprLike()?.assert_result(true, assert_result_callback)
+                }
+            }else if(L == undefined && R != undefined){
+                if(R){
+
+                }else{
+                    this.left.toLogicExprLike()?.assert_result(true, assert_result_callback)
+                }
+            }
+        }else{
+            if(L != undefined && L)
+                assert_result_callback.assert_failed()
+            else if(R != undefined && R)
+                assert_result_callback.assert_failed()
+            else{
+                if(L == undefined)
+                    this.left.toLogicExprLike()?.assert_result(false, assert_result_callback)
+                if(R == undefined)
+                    this.right.toLogicExprLike()?.assert_result(false, assert_result_callback)
+            }
+        }
+    }
 }
 class AssignExpr extends BinaryExpr{
     cmpResult : boolean|undefined = undefined
     canBeCmp : boolean = true
+    onlyLogicAssign : boolean = false
+
     constructor(left:Expr,right:Expr){
         super(left,right, "=")
     }
     hasResult(): boolean {
+        if(this.onlyLogicAssign)
+            return this.right.hasResult() && this.left.hasResult()
         return this.right.hasResult() || this.left.hasResult()
     }
     result(): number {
@@ -317,6 +465,32 @@ class AssignExpr extends BinaryExpr{
     toAssignExpr(): AssignExpr | undefined {
         return this
     }
+
+    toLogicExprLike(): LogicExprLike | undefined {
+        if(this.canBeCmp)
+            return this
+        return undefined
+    }
+    assert_result(result:boolean, assert_result_callback:LogicExprAssertResultCallbacks){
+        let hasL = this.left.hasResult()
+        let hasR = this.right.hasResult()
+        if(hasL && hasR){
+            let is_equal = Math.abs(this.left.result() - this.right.result()) < 0.0000001
+            if(result != is_equal){
+                assert_result_callback.assert_failed()
+            }
+        }
+        else if(hasL &&!hasR){
+            if(result){
+                this.right.equal_to(this.left.result())
+            }
+        }else if(hasR && !hasL){
+            if(result){
+                this.left.equal_to(this.right.result())
+            }
+        }
+    }
+
 }
 
 class CompareExpr extends BinaryExpr{
@@ -345,6 +519,31 @@ class CompareExpr extends BinaryExpr{
             ExprContext.ctx.compareResultCallback(this, this.cmpResult)
         }
         return L
+    }
+
+    toLogicExprLike(): LogicExprLike | undefined {
+        if(this.op == "!=")
+            return this
+        return undefined
+    }
+    assert_result(result:boolean, assert_result_callback:LogicExprAssertResultCallbacks){
+        let hasL = this.left.hasResult()
+        let hasR = this.right.hasResult()
+        if(hasL && hasR){
+            let is_equal = Math.abs(this.left.result() - this.right.result()) < 0.0000001
+            if(result == is_equal){
+                assert_result_callback.assert_failed()
+            }
+        }
+        else if(hasL &&!hasR){
+            if(!result){
+                this.right.equal_to(this.left.result())
+            }
+        }else if(hasR && !hasL){
+            if(!result){
+                this.left.equal_to(this.right.result())
+            }
+        }
     }
 }
 
@@ -487,7 +686,7 @@ class UnaryLogicExpr extends UnaryExpr{
     result(): number {
         let oldCallback = ExprContext.ctx.compareResultCallback
         let L:boolean|undefined = undefined
-        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = r}
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = condAnd(L,r)}
         let R = this.expr.result()
         ExprContext.ctx.compareResultCallback = oldCallback
 
@@ -503,6 +702,31 @@ class UnaryLogicExpr extends UnaryExpr{
     logicResult(L:boolean):boolean{
         return false
     }
+
+    toLogicExprLike(): LogicExprLike | undefined {
+        return this
+    }
+
+    assert_result(result:boolean, assert_result_callback:LogicExprAssertResultCallbacks){
+        let oldCallback = ExprContext.ctx.compareResultCallback
+        let L:boolean|undefined = undefined
+        ExprContext.ctx.compareResultCallback = (e,r)=>{ L = condAnd(L,r)}
+        if(this.expr.hasResult()){
+            let Lresult = this.expr.result()
+            if(L==undefined)
+                L = Math.abs(Lresult) > 0.5
+        }
+        ExprContext.ctx.compareResultCallback = oldCallback
+
+        this._assert_result(L, result, assert_result_callback)
+    }
+
+    _assert_result(L:boolean|undefined, result:boolean, assert_result_callback:LogicExprAssertResultCallbacks){
+    }
+
+    suggestUseAsLogic(): boolean {
+        return true
+    }
 }
 class NotExpr extends UnaryLogicExpr{
     constructor(expr){
@@ -510,6 +734,14 @@ class NotExpr extends UnaryLogicExpr{
     }
     logicResult(L: boolean): boolean {
         return !L
+    }
+
+    _assert_result(L: boolean | undefined, result: boolean, assert_result_callback: LogicExprAssertResultCallbacks): void {
+        if(L && L == result)
+            assert_result_callback.assert_failed()
+        else if(L == undefined){
+            this.expr.toLogicExprLike()?.assert_result(!result, assert_result_callback)
+        }
     }
 }
 
@@ -588,11 +820,7 @@ class SelectExpr extends Expr{
             let oldCallback = ExprContext.ctx.compareResultCallback
             let cond:boolean|undefined = undefined
             ExprContext.ctx.compareResultCallback = function(expr, result){
-                if(result == undefined || result == false){
-                    cond = false
-                }else{
-                    cond = true
-                }
+                cond = condAnd(cond, result)
             }
             let condResult = this.items[i].cond.result()
             if(cond == undefined)
@@ -1104,6 +1332,7 @@ class ExprFactory{
             const P_AND             = 50
             const P_OR              = 40
 
+            const P_RIGHT_ARROW     = 30
             let first :Expr | undefined = undefined
 
             while(true){
@@ -1192,6 +1421,14 @@ class ExprFactory{
                     if(priority < P_MUL){
                         next()
                         first = new DivExpr(first, readValue(false, P_MUL))
+                    }else{
+                        return first
+                    }
+                }else if(mo("→")){
+                    assert(first != undefined, "'right arrow' can't be the first operator")
+                    if(priority < P_RIGHT_ARROW){
+                        next()
+                        first = new OrExpr(new NotExpr(first), readValue(false, P_RIGHT_ARROW))
                     }else{
                         return first
                     }
@@ -1299,6 +1536,8 @@ class Follower{
     removeHideAllBtn(){}
 
     hideAllBtns(){}
+
+    hideFxBtn(){}
 
     echartsData:EchartsData|undefined = undefined
     needEchartsData(){return false}
@@ -1512,6 +1751,14 @@ class ElementFollower extends Follower{
             if(elems[i].classList.contains("follower-hide-all"))
                 continue
             elems[i].style.display = 'none'
+        }
+    }
+
+    hideFxBtn(): void {
+        let elem = this.root.getElementsByClassName("follower-echart-show")
+        for(let i=0;i<elem.length;i++){
+            let e = elem[i] as HTMLElement
+            e.style.display = 'none'
         }
     }
 
@@ -1884,7 +2131,9 @@ class VarProvider{
         this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
         this.logicHint = (elem.getAttribute("data-logichint") || "").split(",")
-        
+        if(this.logicHint.length > 0 && this.logicHint[this.logicHint.length-1] == ""){
+            this.logicHint.pop()
+        }
         this.echartType = elem.getAttribute('data-mathvar-echarttype') ?? undefined
         if(!VarProvider.echartType.has(this.echartType))
             this.echartType = undefined
@@ -2229,6 +2478,7 @@ class WikiMathExpressionProperty{
     name:string|undefined = undefined
     to:string|undefined = undefined
     is_katex = false
+    type:string = "math" //math / logic
 
     ui:string = undefined
 
@@ -2250,6 +2500,12 @@ class WikiMathExpressionProperty{
         if(this.ui == "nobtn"){
             return false
         }
+        return true
+    }
+
+    needFxBtn(){
+        if(this.type == "logic")
+            return false
         return true
     }
 }
@@ -2281,6 +2537,7 @@ function need_calc_math(elem:Element, prop:WikiMathExpressionProperty){
             prop.name = elem.getAttribute("data-name") || undefined
             prop.to = elem.getAttribute("data-to") || undefined
             prop.ttl = +(elem.getAttribute("data-ttl") || "1")
+            prop.type = elem.getAttribute("data-type") || "math"
             if(!isFinite(prop.ttl))
                 prop.ttl = 1
             return true
@@ -2314,7 +2571,7 @@ for(let m=0;m<maths.length;m++){
 
         //fix expr
         if(prop.ttl > 1){
-            function fix(e:Expr){
+            function fixCanBeCompare(e:Expr){
                 let assign = e.toAssignExpr()
                 if(assign){
                     assign.canBeCmp = false
@@ -2323,16 +2580,36 @@ for(let m=0;m<maths.length;m++){
                 if(select){
                     for(let i=0;i<select.items.length;i++){
                         //don't fix the condition
-                        fix(select.items[i].value)
+                        fixCanBeCompare(select.items[i].value)
                     }
                 }else{
-                    e.visit(fix)
+                    e.visit(fixCanBeCompare)
                 }
             }
-            fix(e)
+            fixCanBeCompare(e)
+        }
+        if(prop.type == "logic"){
+            function fixLogic(e:Expr){
+                let assign = e.toAssignExpr()
+                if(assign){
+                    assign.onlyLogicAssign = true
+                }
+                let select = e.toSelectExpr()
+                if(select){
+                    // for(let i=0;i<select.items.length;i++){
+                    //     //don't fix the condition
+                    //     fixLogic(select.items[i].value)
+                    // }
+                }else{
+                    e.visit(fixLogic)
+                }
+            }
+            fixLogic(e)
         }
         if(!prop.needBtn())
             follower.hideAllBtns()
+        if(!prop.needFxBtn())
+            follower.hideFxBtn()
 
         console.log("已解析公式：", e.toString(), e)
     }catch(e){
@@ -2420,6 +2697,12 @@ function calculate(){
     let need_display_followers = isAllFollowersHide()
 
     ExprContext.ctx.reset()
+    for(let i=0;i<followers.length;i++){
+        let follower = followers[i]
+        if(follower)
+            follower.text("未知")
+    }
+
     for(let i=0;i<varproviders.length;i++){
         varproviders[i].updateContext()
     }
@@ -2438,6 +2721,62 @@ function calculate(){
             if(expr_ttl[m] <= 0)
                 continue
             let needLatexPrefix = props[m].needLatexVariablePrefix()
+
+            if(props[m].type == "logic"){
+                let logic = exprs[m].toLogicExprLike()
+                if(logic){
+                    if(displayDebugMessage())
+                        console.log("公式" + exprs[m].toString() +"进行逻辑断言")
+
+                    let updated_vars = ""
+                    let hasAssertFailed = false
+                    // let changed_count = 0
+                    logic.assert_result(true, {
+                        anything_changed: function (varname: string, result: boolean) {
+                            // changed_count++
+                            if(updated_vars.length > 0) updated_vars += "，"
+                            updated_vars += "\\(" +varname + "\\leftarrow " + (result ? "真" : "假") + "\\)"
+                        },
+                        assert_failed: function () {
+                            hasAssertFailed = true
+                        }
+                    })
+                    // if(changed_count > 1)
+                    //     updated_vars += "\n"
+
+                    if(hasAssertFailed){
+                        if(updated_vars.length > 0)
+                            updated_vars += "，"
+                        updated_vars += "❌"
+                        if(!props[i].displayEmojiIfPossible()){
+                            updated_vars += "矛盾"
+                        }
+                    }
+                    if(updated_vars.length > 0){
+                        expr_ttl[m]--
+                    }
+
+                    let _follower = followers[m]
+                    if(_follower){
+                        if(_follower.isHide() && need_display_followers)
+                            _follower.show()
+                        if(!_follower.isHide()){
+                            if(updated_vars.length > 0)
+                                _follower.text(updated_vars)
+                            _follower.follow()
+                        }
+                    }
+                    
+                    if(ExprContext.ctx.changed){
+                        someexpr_changed = true
+                    }
+                    continue
+                }else{
+                    if(displayDebugMessage())
+                        console.log("公式" + exprs[m].toString() +"不会被视为逻辑断言，因为它不能被转换为一个逻辑类型的表达式")
+                }
+            }
+
             if(exprs[m].hasResult()){
                 let updated_vars = ""
                 ExprContext.ctx.changedCallback = (name,value,changed)=>{
@@ -2448,11 +2787,12 @@ function calculate(){
 
                 let compare_result : boolean | undefined = undefined
                 ExprContext.ctx.compareResultCallback = (expr,result)=>{
-                    if(expr.cmpResult != undefined){
-                        if(compare_result == undefined || compare_result){
-                            compare_result = expr.cmpResult
-                        }
-                    }
+                    compare_result = condAnd(compare_result, result)
+                    // if(expr.cmpResult != undefined){
+                    //     if(compare_result == undefined || compare_result){
+                    //         compare_result = expr.cmpResult
+                    //     }
+                    // }
                 }
 
                 let result = exprs[m].result()
@@ -2492,6 +2832,15 @@ function calculate(){
                 if(ExprContext.ctx.changed){
                     someexpr_changed = true
                     expr_ttl[m]--
+                }
+                continue
+            }
+
+            {
+                let _follower = followers[m]
+                if(_follower){
+                    if(_follower.isHide() && need_display_followers)
+                        _follower.show()
                 }
             }
         }
@@ -2552,7 +2901,24 @@ function calculateEcharts(){
                 if(expr_ttl[m]<=0)
                     continue
                 ExprContext.ctx.changed = false
-                if(exprs[m].hasResult()){
+
+                let handled = false
+                if(props[m].type == "logic"){
+                    let logic = exprs[m].toLogicExprLike()
+                    logic.assert_result(true, {
+                        anything_changed: function (varname: string, result: boolean) {
+                        },
+                        assert_failed: function () {
+                        }
+                    })
+                    if(ExprContext.ctx.changed){
+                        someexpr_changed = true
+                        expr_ttl[m]--
+                    }
+                    handled = true
+                }
+
+                if(!handled && exprs[m].hasResult()){
                     let echartData = followers[m].echartsData
                     let save_additional_data = true
                     {
@@ -2587,13 +2953,13 @@ function calculateEcharts(){
     
                     let compare_result : boolean | undefined = undefined
                     ExprContext.ctx.compareResultCallback = (expr,result)=>{
-                        if(expr.cmpResult != undefined){
-                            if(compare_result == undefined || compare_result){
-                                compare_result = expr.cmpResult
-                            }
-                        }
+                        compare_result = condAnd(compare_result, result)
+                        // if(expr.cmpResult != undefined){
+                        //     if(compare_result == undefined || compare_result){
+                        //         compare_result = expr.cmpResult
+                        //     }
+                        // }
                     }
-
                     let ans = exprs[m].result()
                     if(save_additional_data){
                         if(compare_result != undefined){
