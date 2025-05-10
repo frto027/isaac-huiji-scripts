@@ -1,3 +1,9 @@
+###########################################################
+import sys
+import pathlib
+sys.path.append(f"{pathlib.Path(__file__).parent.parent}")
+###########################################################
+
 import json
 from multiprocessing import Pool
 import pathlib
@@ -7,19 +13,11 @@ from mwclient import errors as mwerrors
 from tqdm import tqdm
 import cv2
 import numpy as np
+import isaac
 
+path = "D:\\SteamLibrary\\steamapps\\common\\The Binding of Isaac Rebirth\\extracted_resources\\resources\\"
 
-# path = "E:\\backup\\IsaacAnmPlayer\\docs\\"
-
-path = "E:\\SteamLibrary\\steamapps\\common\\The Binding of Isaac Rebirth\\"
-
-username = "Frto027的机器人@Robot" #input("username:")
-pswd = ""
-
-ua = 'Frto027Robot.Anm2Uploader/0.0 (602706150@qq.com)'
-site = Site('isaac.huijiwiki.com',scheme='https',clients_useragent=ua)
-
-site.login(username, pswd)
+site = isaac.site_bot("upload_png.py")
 
 def compress_and_upload_png(png):
     assert png.startswith(path)
@@ -30,7 +28,8 @@ def compress_and_upload_png(png):
     with open("offline.png",'wb') as f:
         f.write(buf)
 
-    urlpath = 'Anm2_' + png[len(path):].replace('\\','_')
+    online_path = "resources-repp\\" + png[len(path):]
+    urlpath = 'Anm2_' + online_path.replace('\\','_')
 
     #upload
     print("uploading "+urlpath)
@@ -40,7 +39,7 @@ def compress_and_upload_png(png):
         while r == None and retry < 3:
             try:
                 retry = retry + 1
-                r = site.upload(f,urlpath,'Anm2动画素材[[分类:Anm2动画贴图]]',ignore=True, comment='v1.7.9b update')
+                r = site.upload(f,urlpath,'Anm2动画素材(忏悔+)[[分类:Anm2动画贴图]]',ignore=True, comment='v1.9.7.12 update')
             except mwerrors.APIError as e:
                 print(e)
         print(r)
@@ -49,10 +48,9 @@ def compress_and_upload_png(png):
 file_lists = glob(path + "**\\*.png",recursive=True)
 
 file_lists = [f for f in file_lists if
-     f.startswith(path + "resources\\gfx\\") or
-     f.startswith(path + "resources-dlc3\\gfx\\") or
-     f.startswith(path + "resources-dlc3.zh\\gfx\\")
+     f.startswith(path + "gfx\\")
     ]
+# file_lists = file_lists[:5]
 
 def check_same(fpath):
     assert fpath.startswith(path)
@@ -81,10 +79,5 @@ def check_same(fpath):
 #         if not check_same(ff):
 #             f.write(ff + "\n")
 
-file_lists = []
-with open("changelist.txt","r") as f:
-    for line in f.read().split("\n"):
-        if len(line) > 0:
-            file_lists.append(line)
 for png in tqdm(file_lists):
     compress_and_upload_png(png)
