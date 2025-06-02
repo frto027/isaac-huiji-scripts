@@ -2,3 +2,5 @@ __pycache__
 cedict_ts.u8.tgz
 *.log
 basement/img.out
+entity_icon_crepper/chromedriver.exe
+entity_icon_crepper/screenshots
