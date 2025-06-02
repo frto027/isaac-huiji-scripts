@@ -182,18 +182,18 @@ def manage_normal(stbfile='greed/xx.stb', room_name = "地下室", roomtype='d')
     build_prefix(prefix, count, ("|greed=1" if stbfile.startswith("greed/") else "") + f"|stage={room_name}" + (f"|room={roomtype}" if roomtype != "d" else ""))
 
 
-for k in room_name_to_type:
-    if k == 'd':
-        continue
-    manage_special(k, True)
+# for k in room_name_to_type:
+#     if k == 'd':
+#         continue
+#     manage_special(k, True)
 
-for k in room_name_to_type:
-    if k == 'd':
-        continue
-    manage_special(k, False)
+# for k in room_name_to_type:
+#     if k == 'd':
+#         continue
+#     manage_special(k, False)
 
 normal_rooms = {
-    "00.special rooms.stb": 				"特殊",
+    # "00.special rooms.stb": 				"特殊",
 	"01.basement.stb": 					"地下室",
 	"02.cellar.stb": 					"地窖",
 	"03.burning basement.stb": 			"燃烧地下室",
@@ -249,6 +249,51 @@ normal_rooms = {
 
 }
 
+def manage_staged_special(stbfile='greed/xx.stb', room_name = "地下室", roomtype='challenge'):
+    query = {
+        "_type":"ROOM_STB",
+        "_file":stbfile,
+        "type":room_name_to_type[roomtype]
+    }
+
+    prefix = ("布局/贪婪/" if stbfile.startswith("greed/") else "布局/") + room_name_to_prefixes[roomtype] + "/" + room_name
+    count = mongo.count(query)
+    if count == 0:
+        return
+    print(prefix, count)
+    build_prefix(prefix, count, ("|greed=1" if stbfile.startswith("greed/") else "") + f"|stage={room_name}|room={roomtype}")
+
+special_room_names = [
+"planetarium",
+"secretexit",
+"blue",
+"ultrasecret",
+"shop",
+"error",
+"treasure",
+"boss",
+"miniboss",
+"secret",
+"supersecret",
+"arcade",
+"curse",
+"challenge",
+"library",
+"sacrifice",
+"devil",
+"angel",
+"itemdungeon",
+"bossrush",
+"isaacs",
+"barren",
+"chest",
+"dice",
+"blackmarket",
+]
+for stb in normal_rooms:
+    for s in special_room_names:
+        manage_staged_special(stb, normal_rooms[stb], roomtype=s)
+# don't manage_normal, it's inside Project:布局查询
 # for k in normal_rooms:
 #     manage_normal(k, normal_rooms[k], 'd')
 # print(mongo.query(query()))
