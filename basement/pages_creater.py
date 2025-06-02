@@ -222,7 +222,7 @@ normal_rooms = {
 	# "34.mortis.stb": 					"mortis",
 	"35.home.stb": 						"家",
 	# "36.backwards.stb": 					"backwards",
-	"greed/00.special rooms.stb": 		"特殊",
+	# "greed/00.special rooms.stb": 		"特殊",
 	"greed/01.basement.stb": 			"地下室",
 	"greed/02.cellar.stb": 				"地窖",
 	"greed/03.burning basement.stb": 	"燃烧地下室",
