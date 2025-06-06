@@ -71,6 +71,7 @@ gotos = {
     "ROOM_CHEST" : 's.chest',
     "ROOM_DICE" : 's.dice',
     "ROOM_BLACK_MARKET" : 's.blackmarket',
+    "ROOM_GREED_EXIT" : "s.greedexit"
 }
 prefixes = {
     "ROOM_DEFAULT" : "d",
@@ -99,7 +100,7 @@ prefixes = {
     "ROOM_SECRET_EXIT" : "s/隐秘出口"		,
     "ROOM_BLUE" : "s/蓝色房间"				,
     "ROOM_ULTRASECRET" : "s/究极隐藏房"		,
-
+    "ROOM_GREED_EXIT" : "s/贪婪出口房"
 }
 room_name_to_type:dict[str,int] = {}
 room_name_to_prefixes:dict[str,str] = {}
@@ -191,6 +192,8 @@ def manage_normal(stbfile='greed/xx.stb', room_name = "地下室", roomtype='d')
 #     if k == 'd':
 #         continue
 #     manage_special(k, False)
+
+# manage_special("greedexit", True)
 
 normal_rooms = {
     # "00.special rooms.stb": 				"特殊",
@@ -289,6 +292,7 @@ special_room_names = [
 "chest",
 "dice",
 "blackmarket",
+"greedexit"
 ]
 for stb in normal_rooms:
     for s in special_room_names:
@@ -297,3 +301,4 @@ for stb in normal_rooms:
 # for k in normal_rooms:
 #     manage_normal(k, normal_rooms[k], 'd')
 # print(mongo.query(query()))
+
