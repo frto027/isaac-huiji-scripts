@@ -14,7 +14,7 @@ site = isaac.site('sync/items.py')
 item = xmlhelper.game_file('items.xml')
 
 tabx = pytabx.HuijiTabx(site.Pages["Data:item.tabx"])
-# tabx.dump("before.json")
+tabx.dump("before.json")
 for ch in xmlhelper.game_file('items_metadata.xml'):
     if ch.tag == "item":
         page = "c" + ch.attrib["id"]
@@ -34,5 +34,23 @@ for ch in xmlhelper.game_file('items.xml'):
         page = "c" + ch.attrib["id"]
         data = tabx.get_row_by_unique_field("page", page)
         data.set_int('unlock',ch.attrib, 'achievement', 0)
+    if ch.tag == "active":
+        page = "c" + ch.attrib["id"]
+        data = tabx.get_row_by_unique_field("page", page)
+        charges = []
+        add_id = False
+        if "maxcharges" in ch.attrib:
+            charges.append(f"maxcharges={ch.attrib['maxcharges']}")
+        if "chargetype" in ch.attrib:
+            charges.append(f"chargetype={ch.attrib['chargetype']}")
+            if ch.attrib["chargetype"] == "special":
+                add_id = True
+        if page == "c422":
+            add_id = True
+        if add_id:
+            charges.append(f"id={ch.attrib['id']}")
+        charges_txt = ','.join(charges)
+        data.set("ChargeRepp", charges_txt)
+
 # tabx.dump("after.json")
-tabx.save('忏悔+更新')
+tabx.save('增加忏悔+充能（新格式）')
