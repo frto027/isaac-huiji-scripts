@@ -41,6 +41,8 @@ for ch in xmlhelper.game_file('items.xml'):
         add_id = False
         if "maxcharges" in ch.attrib:
             charges.append(f"maxcharges={ch.attrib['maxcharges']}")
+            if ch.attrib['maxcharges'] == "0":
+                add_id = True
         if "chargetype" in ch.attrib:
             charges.append(f"chargetype={ch.attrib['chargetype']}")
             if ch.attrib["chargetype"] == "special":
