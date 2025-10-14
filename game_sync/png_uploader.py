@@ -26,17 +26,18 @@ def compress_and_upload_png(png:str):
     print("uploading "+urlpath)
     page :mwclient.page.Page = site.Pages["文件:" + urlpath]
     print(str(page.exists))
-    # with open("offline.png",'rb') as f:
-    #     r = None
-    #     retry = 0
-    #     while r == None and retry < 3:
-    #         try:
-    #             retry = retry + 1
-    #             r = site.upload(f,urlpath,'Anm2动画素材[[分类:Anm2动画贴图]]',ignore=True, comment='v1.7.9b update')
-    #         except mwerrors.APIError as e:
-    #             print(e)
-    #     print(r)
+    with open("offline.png",'rb') as f:
+        r = None
+        retry = 0
+        while r == None and retry < 3:
+            try:
+                retry = retry + 1
+                r = site.upload(f,urlpath,'Anm2动画素材[[分类:Anm2动画贴图]]',ignore=True, comment='v1.7.9b update')
+            except mwerrors.APIError as e:
+                print(e)
+        print(r)
 
 
-for file in config.game_folder_resource.rglob("**/*.png"):
+for file in config.game_folder_resource.rglob("gfx/characters/player2/**/*.png"):
+# for file in config.game_folder_resource.rglob("**/*.png"):
     compress_and_upload_png(png=str(file))

@@ -5,10 +5,6 @@ import json
 
 game_folder = Path(r'D:\SteamLibrary\steamapps\common\The Binding of Isaac Rebirth\extracted_resources')
 game_folder_resource = game_folder / 'resources'
-game_folder_resource_dlc3 = game_folder_resource
-game_folder_resource_dlc3_zh = game_folder_resource
-# game_folder_resource_dlc3 = game_folder / 'resources-dlc3.not_exists'
-# game_folder_resource_dlc3_zh = game_folder / 'resources-dlc3.zh.not_exists'
 
 ################# 登录相关 ###############
 

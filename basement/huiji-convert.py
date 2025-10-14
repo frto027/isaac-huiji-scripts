@@ -16,7 +16,7 @@ import mwclient
 import pathlib
 from tqdm import tqdm
 
-room_folder = config.game_folder_resource_dlc3 / "rooms"
+room_folder = config.game_folder_resource / "rooms"
 
 def commonToJSONObject(rooms: list[core.Room], extraProp:dict = {})->list[dict]:
     output = []

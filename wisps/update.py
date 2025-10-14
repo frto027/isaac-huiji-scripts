@@ -11,7 +11,7 @@ import isaac
 import xml.etree.ElementTree as ET
 import config
 
-with (config.game_folder_resource_dlc3/'wisps.xml').open("r") as f:
+with (config.game_folder_resource/'wisps.xml').open("r") as f:
     doc = ET.parse(f).getroot()
 
 class Color:

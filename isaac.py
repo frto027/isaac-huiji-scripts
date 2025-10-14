@@ -15,13 +15,14 @@ def site_bot(hint = 'isaac.py')->mwclient.Site:
 输入资源的相对路径，返回对应wiki中的png名称
 """
 def get_anm2_wiki_path(pngname:str) -> str | None:
-    if (config.game_folder_resource_dlc3_zh/pngname).exists():
-        return "Anm2_"+str((config.game_folder_resource_dlc3/pngname).relative_to(config.game_folder)).replace("\\","_").lower()
-    if (config.game_folder_resource_dlc3/pngname).exists():
-        return "Anm2_"+str((config.game_folder_resource_dlc3/pngname).relative_to(config.game_folder)).replace("\\","_").lower()
-    if (config.game_folder_resource/pngname).exists():
-        return "Anm2_"+str((config.game_folder_resource/pngname).relative_to(config.game_folder)).replace("\\","_").lower()
-    return None
+    return "Anm2_resources-repp_"+str((config.game_folder_resource/pngname).relative_to(config.game_folder_resource)).replace("\\","_").lower()
+
+    # if (config.game_folder_resource/pngname).exists():
+    # if (config.game_folder_resource/pngname).exists():
+    #     return "Anm2_"+str((config.game_folder_resource/pngname).relative_to(config.game_folder)).replace("\\","_").lower()
+    # if (config.game_folder_resource/pngname).exists():
+    #     return "Anm2_"+str((config.game_folder_resource/pngname).relative_to(config.game_folder)).replace("\\","_").lower()
+    # return None
 import hashlib
 def get_file_wiki_url(pngname:str):
     pngname = pngname[0].upper() + pngname[1:].lower()

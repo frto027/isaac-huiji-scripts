@@ -17,6 +17,9 @@ with (config.game_folder / 'resources-dlc3/babies.xml').open('r') as f:
 
 for item in doc:
     assert item.tag == 'baby'
+    d = tabx.get_row_by_unique_field("id", int(item.attrib["id"]), create_ok=False)
+    if d != None:
+        continue
     d = tabx.get_row_by_unique_field("id", int(item.attrib["id"]), create_ok=True)
     d.set("name", item.attrib["name"])
     d.set("achievement", int(item.attrib["achievement"]) if "achievement" in item.attrib else -1)
