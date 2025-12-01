@@ -47,12 +47,15 @@ for ch in xmlhelper.game_file('items.xml'):
             charges.append(f"chargetype={ch.attrib['chargetype']}")
             if ch.attrib["chargetype"] == "special":
                 add_id = True
-        if page == "c422":
+        if page in [
+            	# "c127","c297","c347","c475","c536","c577","c622","c628","c636",
+	            # "c40","c126","c133","c135","c137","c177","c186","c282","c290","c295","c434","c487","c555","c623","c640","c710","c715",
+                "c422", "c622", "c487", "c710", "c636"]:
             add_id = True
         if add_id:
             charges.append(f"id={ch.attrib['id']}")
         charges_txt = ','.join(charges)
         data.set("ChargeRepp", charges_txt)
 
-# tabx.dump("after.json")
-tabx.save('增加忏悔+充能（新格式）')
+tabx.dump("after.json")
+tabx.save('补充充能')
