@@ -2080,6 +2080,8 @@ class VarProvider{
     low:number
     high:number
     intOnly:boolean
+    allow_overflow:boolean
+    bias_curve: number[]
     intScale:number = 1
     varname:string
     init:number
@@ -2134,9 +2136,21 @@ class VarProvider{
         this.init = +(elem.getAttribute("data-mathvar-init") || "1")
         this.high = +(elem.getAttribute("data-mathvar-high") || "10")
         this.intOnly = elem.getAttribute("data-mathvar-int") == "true" || elem.getAttribute("data-mathvar-int") == "1"
+        this.allow_overflow = elem.getAttribute("data-allow-overflow") == "true" || elem.getAttribute("data-allow-overflow") == "1" 
         this.rndType = elem.getAttribute("data-mathvar-rnd") ?? "none"
         this.varname =  elem.getAttribute("data-mathvar") || "?"
         this.logicHint = (elem.getAttribute("data-logichint") || "").split(",")
+
+        this.bias_curve = []
+        if(elem.hasAttribute("data-touch-bias")){
+            for(let v of elem.getAttribute("data-touch-bias")!.split(",")){
+                let vv = +v;
+                if(isFinite(vv)){
+                    this.bias_curve.push(vv)
+                }
+            }
+        }
+
         if(this.logicHint.length > 0 && this.logicHint[this.logicHint.length-1] == ""){
             this.logicHint.pop()
         }
@@ -2372,10 +2386,42 @@ class VarProvider{
         }
     }
     p2v(p:number){
+        if(this.bias_curve.length > 1){
+            // 0,1,2,3,4,length=5
+            // 0 1/5 2/5  3/5  4/5  5/5
+            let sp = p * (this.bias_curve.length-1) // 0.0 ~ 4.0
+            let segment = Math.floor(sp) // 0~3
+            if(segment < 0) segment = 0;
+            if(segment > this.bias_curve.length-2) segment = this.bias_curve.length-2
+            let percent_inside_segment = sp - segment;
+            if(percent_inside_segment < 0) percent_inside_segment = 0;
+            if(percent_inside_segment > 1) percent_inside_segment = 1;
+            return this.bias_curve[segment] + (this.bias_curve[segment+1] - this.bias_curve[segment]) * percent_inside_segment;
+        }
         return this.low + (this.high - this.low) * p;
     };
+    static clamp(v:number, low:number, high: number){
+        if(v < low) return low;
+        if(v > high) return high;
+        return v;
+    }
     v2p(v:number){
-        return (v-this.low) / (this.high - this.low);
+        if(this.bias_curve.length > 1){
+            if(v <= this.bias_curve[0]){
+                return 0;
+            }
+            let base_percent = 0;
+            let segment_bias = 1 / (this.bias_curve.length-1)
+            for(let i=0;i<this.bias_curve.length-1;i++){
+                if(v <= this.bias_curve[i+1]){
+                    return VarProvider.clamp(base_percent + segment_bias * (v - this.bias_curve[i]) / (this.bias_curve[i+1]-this.bias_curve[i]), 0, 1)
+                }else{
+                    base_percent += segment_bias
+                }
+            }
+            return 1;
+        }
+        return VarProvider.clamp((v-this.low) / (this.high - this.low), 0, 1);
     };
 
     hintText(v:number){
@@ -2393,8 +2439,10 @@ class VarProvider{
     }
 
     setValue(i:number, isRandomValue:boolean = false){
-        if(i > this.high) i = this.high
-        if(i < this.low) i = this.low
+        if(!this.allow_overflow){
+            if(i > this.high) i = this.high
+            if(i < this.low) i = this.low
+        }
         this.value = i
         if(this.intOnly) i = Math.round(i / this.intScale) * this.intScale
 
