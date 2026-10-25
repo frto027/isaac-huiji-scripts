@@ -103,7 +103,7 @@ results = []
 
 for f in tqdm(room_folder.glob("*.stb"), desc='read rooms'):
     x = roomconvert.stbToCommon(str(f))
-    x = commonToJSONObject(x.rooms, {'_type':'ROOM_STB', '_file': f.name})
+    x = commonToJSONObject(x.rooms, {'_type':'ROOM_STB', '_file': f.name, "_hjschema": "Rooms"})
     # manually add idx for rooms
     for i in range(len(x)):
         x[i]['_i'] = str(i)
@@ -111,7 +111,7 @@ for f in tqdm(room_folder.glob("*.stb"), desc='read rooms'):
 
 for f in tqdm((room_folder/'greed').glob("*.stb"), desc='read greed rooms'):
     x = roomconvert.stbToCommon(str(f))
-    x = commonToJSONObject(x.rooms, {'_type':'ROOM_STB', '_file': 'greed/'+f.name, '_greed':True})
+    x = commonToJSONObject(x.rooms, {'_type':'ROOM_STB', '_file': 'greed/'+f.name, '_greed':True, "_hjschema": "Rooms"})
     # manually add idx for rooms
     for i in range(len(x)):
         x[i]['_i'] = str(i)
@@ -120,7 +120,7 @@ for f in tqdm((room_folder/'greed').glob("*.stb"), desc='read greed rooms'):
 print(f"{len(results)} rooms got")
 
 import isaac
-site = isaac.site("basement/huiji_convert.py")
+site = isaac.site_bot("basement/huiji_convert.py")
 page_counter = {}
 
 valid_rooms = set()
@@ -135,13 +135,16 @@ for room in tqdm(results, desc='upload pages'):
     #         break
     # print(page_name)
     # print(page_content)
-    site.Pages[page_name].save(page_content, summary='自动上传地形文件')
+    site.Pages[page_name].save(page_content, summary='忏悔+地形文件更新(1)')
 
 # TODO：搞明白现在的rooms文件夹结构
 
-# rooms_in_wiki = set()
+rooms_in_wiki = set()
 
-# for p in site.allpages(namespace='3500',prefix='rooms/'):
-#     rooms_in_wiki.add(p.name.lower())
+for p in site.allpages(namespace='3500',prefix='rooms/'):
+    rooms_in_wiki.add(p.name.lower())
 
-# print(','.join(valid_rooms - rooms_in_wiki))
+rooms_delta = rooms_in_wiki - valid_rooms
+
+print(','.join(rooms_delta))
+print(f"valid = {len(valid_rooms)}, rooms in wiki = {len(rooms_in_wiki)}, need del = {len(rooms_delta)}")
